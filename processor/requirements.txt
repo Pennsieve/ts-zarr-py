@@ -1,0 +1,5 @@
+zarr>=3
+numcodecs
+numpy
+pynwb
+h5py
