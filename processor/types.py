@@ -1,3 +1,5 @@
+"""Shared value types for the writer."""
+
 from dataclasses import dataclass
 from typing import Literal
 
@@ -8,13 +10,12 @@ type ChannelKind = Literal["continuous", "unit"]
 class LevelPlan:
     """Resolved shape and time resolution of one pyramid level of a channel.
 
-    Level 0 holds raw samples, ``shape == (n_bins,)``.
-    Levels ``>= 1`` hold ``(min, max)`` envelopes, ``shape == (n_bins, 2)``
-    with the trailing axix being the pair.
+    Level 0 holds raw samples, shape (n_bins,). Levels >= 1 hold (min, max)
+    envelopes, shape (n_bins, 2) with the trailing axis being the pair.
 
-    ``period_us`` is the wall-clock microseconds that one bin spans
-      (``1e6 / rate_hz * 4 ** level``).
-      Float because the rate need not divide evenly into microseconds.
+    period_us is the wall-clock microseconds that one bin spans
+    (1e6 / rate_hz * 4 ** level). Float because the rate need not divide evenly
+    into microseconds.
     """
 
     level: int
@@ -35,8 +36,8 @@ class LevelPlan:
 class ChunkShard:
     """Inner-chunk and outer-shard shapes for one Zarr array.
 
-    ``chunk_shape`` is the inner (compressed) chunk; ``shard_shape`` is the outer
-    shard that groups whole chunks under the ZEP2 sharding codec.
+    chunk_shape is the inner (compressed) chunk; shard_shape is the outer shard
+    that groups whole chunks under the ZEP2 sharding codec.
     """
 
     chunk_shape: tuple[int, ...]

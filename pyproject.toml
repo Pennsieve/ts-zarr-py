@@ -71,6 +71,7 @@ select = [
     "TID",  # flake8-tidy-imports
     "N",    # pep8-naming
     "PL",   # pylint
+    "D",    # pydocstyle (PEP 257 docstring conventions)
 ]
 ignore = [
     "E501",     # line too long (handled by formatter)
@@ -84,8 +85,11 @@ ban-relative-imports = "all"
 [tool.ruff.lint.pylint]
 max-args = 10
 
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["B", "C4", "ANN", "PLR2004"]
+"tests/*" = ["B", "C4", "ANN", "D", "PLR2004"]
 
 [tool.mypy]
 python_version = "3.12"

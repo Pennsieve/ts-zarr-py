@@ -10,15 +10,63 @@ import numpy.typing as npt
 class ContinuousChannelSource(Protocol):
     """A continuous channel the writer reads raw samples from.
 
-    ``id`` is the opaque upstream identifier the reader joins on for display
-    metadata. ``rate_hz`` is in Hz; ``start_us`` is the wall-clock microseconds
-    of sample 0. ``read_samples(start, stop)`` returns the half-open
-    ``[start, stop)`` sample window as float32.
+    The id attribute is the opaque upstream identifier the reader joins on for
+    display metadata.
     """
 
     id: str
 
-    def rate_hz(self) -> float: ...
-    def start_us(self) -> int: ...
-    def num_samples(self) -> int: ...
-    def read_samples(self, start: int, stop: int) -> npt.NDArray[np.float32]: ...
+    def rate_hz(self) -> float:
+        """Return the channel's sample rate in hertz."""
+        ...
+
+    def start_us(self) -> int:
+        """Return the wall-clock microseconds of sample index 0."""
+        ...
+
+    def num_samples(self) -> int:
+        """Return the total number of raw samples in the channel."""
+        ...
+
+    def read_samples(self, start: int, stop: int) -> npt.NDArray[np.float32]:
+        """Return the half-open [start, stop) sample window as float32."""
+        ...
+
+
+@runtime_checkable
+class UnitChannelSource(Protocol):
+    """A unit (spike) channel the writer reads events, classifications, and waveforms from.
+
+    The id attribute is the opaque upstream identifier the reader joins on for
+    display metadata. rate_hz is the waveform sample rate, not an event rate.
+    """
+
+    id: str
+
+    def rate_hz(self) -> float:
+        """Return the waveform sample rate in hertz."""
+        ...
+
+    def start_us(self) -> int:
+        """Return the wall-clock microseconds of the recording start."""
+        ...
+
+    def num_events(self) -> int:
+        """Return the total number of spike events."""
+        ...
+
+    def points_per_event(self) -> int:
+        """Return the number of waveform samples stored per event."""
+        ...
+
+    def read_events(self, start: int, stop: int) -> npt.NDArray[np.int64]:
+        """Return the half-open [start, stop) window of absolute-microsecond event timestamps."""
+        ...
+
+    def read_units(self, start: int, stop: int) -> npt.NDArray[np.uint8]:
+        """Return the half-open [start, stop) window of per-event cluster ids."""
+        ...
+
+    def read_waveforms(self, start: int, stop: int) -> npt.NDArray[np.float32]:
+        """Return float32 waveforms for events [start, stop), shape (stop - start, points_per_event)."""
+        ...

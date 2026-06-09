@@ -1,6 +1,6 @@
 import numpy as np
 
-from processor.protocols import ContinuousChannelSource
+from processor.protocols import ContinuousChannelSource, UnitChannelSource
 
 
 class FakeContinuous:
@@ -54,3 +54,57 @@ def test_missing_id_attr_is_not_recognized():
             return np.zeros(stop - start, dtype=np.float32)
 
     assert not isinstance(MissingId(), ContinuousChannelSource)
+
+
+class FakeUnit:
+    id = "u-0"
+
+    def rate_hz(self):
+        return 30000.0
+
+    def start_us(self):
+        return 0
+
+    def num_events(self):
+        return 3
+
+    def points_per_event(self):
+        return 32
+
+    def read_events(self, start, stop):
+        return np.zeros(stop - start, dtype=np.int64)
+
+    def read_units(self, start, stop):
+        return np.zeros(stop - start, dtype=np.uint8)
+
+    def read_waveforms(self, start, stop):
+        return np.zeros((stop - start, 32), dtype=np.float32)
+
+
+def test_conforming_unit_instance_is_recognized():
+    assert isinstance(FakeUnit(), UnitChannelSource)
+
+
+def test_unit_missing_method_is_not_recognized():
+    class MissingReadWaveforms:
+        id = "u-0"
+
+        def rate_hz(self):
+            return 30000.0
+
+        def start_us(self):
+            return 0
+
+        def num_events(self):
+            return 3
+
+        def points_per_event(self):
+            return 32
+
+        def read_events(self, start, stop):
+            return np.zeros(stop - start, dtype=np.int64)
+
+        def read_units(self, start, stop):
+            return np.zeros(stop - start, dtype=np.uint8)
+
+    assert not isinstance(MissingReadWaveforms(), UnitChannelSource)
