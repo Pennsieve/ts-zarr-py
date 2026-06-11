@@ -1,0 +1,33 @@
+import pytest
+
+from processor.attrs import (
+    channel_group_attrs,
+    level_array_attrs,
+    root_attrs,
+    waveform_array_attrs,
+)
+
+
+def test_root_attrs_returns_empty():
+    assert root_attrs() == {}
+
+
+@pytest.mark.parametrize("kind", ["continuous", "unit"])
+def test_channel_group_attrs(kind):
+    attrs = channel_group_attrs("N:channel:abc", 32000.0, 1000, kind)
+    assert attrs == {
+        "id": "N:channel:abc",
+        "rate_hz": 32000.0,
+        "start_us": 1000,
+        "kind": kind,
+    }
+
+
+@pytest.mark.parametrize("period_us", [31.25, 125.0, 512000.0])
+def test_level_array_attrs(period_us):
+    assert level_array_attrs(period_us) == {"period_us": period_us}
+
+
+@pytest.mark.parametrize("period_us", [31.25, 125.0, 512000.0])
+def test_waveform_array_attrs(period_us):
+    assert waveform_array_attrs(period_us) == {"period_us": period_us}
