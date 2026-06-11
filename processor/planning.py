@@ -1,9 +1,12 @@
 """Pyramid level planning: level counts, shapes, and time resolutions."""
 
+from processor.constants import DECIMATION_FACTOR
 from processor.types import LevelPlan
 
 
-def level_count(num_samples: int, max_levels: int = 8, min_bins: int = 1024) -> int:
+def level_count(
+    num_samples: int, max_levels: int = 8, min_bins: int = 1024
+) -> int:
     """Return the number of pyramid levels for a channel of num_samples samples.
 
     Level 0 (raw) always counts, even when num_samples is 0. Each coarser level is
@@ -12,7 +15,7 @@ def level_count(num_samples: int, max_levels: int = 8, min_bins: int = 1024) -> 
     """
     count = 1
     for level in range(1, max_levels):
-        if num_samples // 4**level < min_bins:
+        if num_samples // DECIMATION_FACTOR**level < min_bins:
             break
         count += 1
     return count
@@ -29,7 +32,7 @@ def level_num_bins(num_samples: int, level: int) -> int:
     division, so it stays exact even for very large num_samples.
     Float division loses precision past 2**53 samples.
     """
-    samples_per_bin: int = 4**level
+    samples_per_bin: int = DECIMATION_FACTOR**level
     return -(-num_samples // samples_per_bin)
 
 
@@ -40,7 +43,7 @@ def level_period_us(level0_period_us: float, level: int) -> float:
     decimation, so level 0 returns level0_period_us unchanged and each higher
     level spans 4x more time than the one below.
     """
-    return float(level0_period_us * 4**level)
+    return float(level0_period_us * DECIMATION_FACTOR**level)
 
 
 def level_shape(num_samples: int, level: int) -> tuple[int, ...]:
@@ -50,7 +53,11 @@ def level_shape(num_samples: int, level: int) -> tuple[int, ...]:
     rank-2 with a trailing axis of length 2 holding the (min, max) pair, and a
     leading axis of one entry per bin.
     """
-    return (num_samples,) if level == 0 else (level_num_bins(num_samples, level), 2)
+    return (
+        (num_samples,)
+        if level == 0
+        else (level_num_bins(num_samples, level), 2)
+    )
 
 
 def plan_levels(

@@ -13,9 +13,9 @@ class LevelPlan:
     Level 0 holds raw samples, shape (n_bins,). Levels >= 1 hold (min, max)
     envelopes, shape (n_bins, 2) with the trailing axis being the pair.
 
-    period_us is the wall-clock microseconds that one bin spans
-    (1e6 / rate_hz * 4 ** level). Float because the rate need not divide evenly
-    into microseconds.
+    period_us is the wall-clock microseconds that one bin spans, widening with
+    each coarser level. Float because the rate need not divide evenly into
+    microseconds.
     """
 
     level: int
