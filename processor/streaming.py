@@ -1,6 +1,7 @@
 """Bounded-memory streaming generators that drive the folds over a source."""
 
 from collections.abc import Callable, Iterable, Iterator
+from typing import Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -8,6 +9,23 @@ import numpy.typing as npt
 from processor.constants import DECIMATION_FACTOR
 from processor.fold import fold_raw_block
 from processor.protocols import ContinuousChannelSource
+
+
+class BlockReadableArray(Protocol):
+    """Minimal structural view of an on-disk array iterated along axis 0.
+
+    Decouples streaming from zarr: any object exposing a length-bearing shape
+    and axis-0 slicing (a zarr Array, a numpy array) satisfies this.
+    """
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Array shape; axis 0 is the iterated sample/bin axis."""
+        ...
+
+    def __getitem__(self, item: slice) -> npt.NDArray[np.float32]:
+        """Return the rows in the given axis-0 slice."""
+        ...
 
 
 def _rebuffer_and_fold(
@@ -71,3 +89,21 @@ def iter_level0_to_level1(
     yield from _rebuffer_and_fold(
         iter_raw_blocks(source, block_samples), fold_raw_block
     )
+
+
+def iter_array_blocks(
+    array: BlockReadableArray, block_len: int
+) -> Iterator[npt.NDArray[np.float32]]:
+    """Yield successive axis-0 windows of an on-disk array.
+
+    Walks [0, array.shape[0]) in block_len-sized windows and yields each
+    array[start:stop] slice; the final window may be shorter (keep-tail).
+    Works for rank-1 raw and rank-2 (min, max) arrays alike. Yields nothing
+    when the array is empty. Raises ValueError if block_len is not positive.
+    """
+    if block_len <= 0:
+        raise ValueError("block_len must be positive")
+    n = array.shape[0]
+    for start in range(0, n, block_len):
+        stop = min(n, start + block_len)
+        yield array[start:stop]

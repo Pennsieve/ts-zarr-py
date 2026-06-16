@@ -4,6 +4,7 @@ import pytest
 from processor.fold import fold_pair_block, fold_raw_block
 from processor.streaming import (
     _rebuffer_and_fold,
+    iter_array_blocks,
     iter_level0_to_level1,
     iter_raw_blocks,
 )
@@ -164,3 +165,43 @@ def test_iter_level0_to_level1_rejects_nonpositive_block(
     src = continuous_source(np.arange(8, dtype=np.float32))
     with pytest.raises(ValueError, match="positive"):
         list(iter_level0_to_level1(src, block_samples))
+
+
+def test_iter_array_blocks_concatenates_to_full_array():
+    arr = np.arange(10, dtype=np.float32)
+    out = list(iter_array_blocks(arr, 4))
+    assert np.array_equal(np.concatenate(out, axis=0), arr)
+
+
+def test_iter_array_blocks_window_sizes_exact_multiple():
+    arr = np.arange(12, dtype=np.float32)
+    assert [b.shape[0] for b in iter_array_blocks(arr, 4)] == [4, 4, 4]
+
+
+def test_iter_array_blocks_window_sizes_with_remainder():
+    arr = np.arange(10, dtype=np.float32)
+    assert [b.shape[0] for b in iter_array_blocks(arr, 4)] == [4, 4, 2]
+
+
+def test_iter_array_blocks_block_larger_than_len():
+    arr = np.arange(3, dtype=np.float32)
+    assert [b.shape[0] for b in iter_array_blocks(arr, 10)] == [3]
+
+
+def test_iter_array_blocks_rank2_slices_axis0():
+    arr = np.arange(14, dtype=np.float32).reshape(7, 2)
+    out = list(iter_array_blocks(arr, 4))
+    assert [b.shape for b in out] == [(4, 2), (3, 2)]
+    assert np.array_equal(np.concatenate(out, axis=0), arr)
+
+
+def test_iter_array_blocks_empty_array_yields_nothing():
+    arr = np.empty(0, dtype=np.float32)
+    assert list(iter_array_blocks(arr, 4)) == []
+
+
+@pytest.mark.parametrize("block_len", [0, -1])
+def test_iter_array_blocks_rejects_nonpositive_block(block_len):
+    arr = np.arange(5, dtype=np.float32)
+    with pytest.raises(ValueError, match="positive"):
+        list(iter_array_blocks(arr, block_len))

@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from processor.constants import INNER_CHUNK_SAMPLES, TARGET_SHARD_BYTES
+
 type ChannelKind = Literal["continuous", "unit"]
 
 
@@ -42,3 +44,20 @@ class ChunkShard:
 
     chunk_shape: tuple[int, ...]
     shard_shape: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class WriteOpts:
+    """Tunable knobs shared by the channel writers.
+
+    zstd_level is the Zstd compression level for every array. max_levels and
+    min_bins bound the pyramid (passed to plan_levels). inner_len and
+    target_shard_bytes size the inner chunk and outer shard (passed to
+    chunk_and_shard).
+    """
+
+    zstd_level: int = 5
+    max_levels: int = 8
+    min_bins: int = 1024
+    inner_len: int = INNER_CHUNK_SAMPLES
+    target_shard_bytes: int = TARGET_SHARD_BYTES

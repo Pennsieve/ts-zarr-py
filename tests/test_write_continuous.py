@@ -1,0 +1,274 @@
+import math
+
+import numpy as np
+import pytest
+from zarr import Array
+
+from processor.attrs import channel_group_attrs
+from processor.fold import fold_block
+from processor.planning import plan_levels
+from processor.types import ChunkShard, LevelPlan, WriteOpts
+from processor.write_continuous import (
+    write_continuous_channel,
+    write_level0,
+    write_level_from_previous,
+)
+from processor.zarr_io import create_array, open_group, write_region
+
+
+def _plan(n, period_us=31.25):
+    return LevelPlan(level=0, shape=(n,), period_us=period_us)
+
+
+def _sizing():
+    return ChunkShard(chunk_shape=(4,), shard_shape=(8,))
+
+
+def _make_prev(group, data):
+    """Create and fill a "prev" array on disk matching data's shape/rank."""
+    grid = (max(1, data.shape[0]), *data.shape[1:])
+    arr = create_array(group, "prev", data.shape, np.float32, grid, grid, {}, 5)
+    if data.shape[0]:
+        write_region(arr, 0, data)
+    return arr
+
+
+def _fold_plan(level, n_prev_rows, chunk0):
+    """LevelPlan + ChunkShard for folding n_prev_rows down by 4 into level."""
+    bins = math.ceil(n_prev_rows / 4)
+    plan = LevelPlan(level=level, shape=(bins, 2), period_us=125.0)
+    sizing = ChunkShard(chunk_shape=(chunk0, 2), shard_shape=(chunk0, 2))
+    return plan, sizing
+
+
+def test_write_level0_round_trips_samples(tmp_path, continuous_source):
+    samples = np.arange(10, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    write_level0(group, continuous_source(samples), _plan(10), _sizing(), 5)
+    stored = open_group(tmp_path / "bundle")["0"][:]
+    assert np.array_equal(stored, samples)
+    assert stored.dtype == np.float32
+
+
+def test_write_level0_creates_named_array_with_shape_and_dtype(
+    tmp_path, continuous_source
+):
+    samples = np.arange(10, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    write_level0(group, continuous_source(samples), _plan(10), _sizing(), 5)
+    arr = open_group(tmp_path / "bundle")["0"]
+    assert arr.shape == (10,)
+    assert arr.dtype == np.float32
+
+
+def test_write_level0_sets_period_us_attr(tmp_path, continuous_source):
+    samples = np.arange(10, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    write_level0(
+        group, continuous_source(samples), _plan(10, 62.5), _sizing(), 5
+    )
+    assert dict(open_group(tmp_path / "bundle")["0"].attrs) == {
+        "period_us": 62.5
+    }
+
+
+def test_write_level0_chunk_and_shard_grid(tmp_path, continuous_source):
+    samples = np.arange(10, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    write_level0(group, continuous_source(samples), _plan(10), _sizing(), 5)
+    arr = open_group(tmp_path / "bundle")["0"]
+    assert arr.shards == (8,)
+    assert arr.chunks == (4,)
+
+
+def test_write_level0_returns_the_array(tmp_path, continuous_source):
+    samples = np.arange(10, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    result = write_level0(
+        group, continuous_source(samples), _plan(10), _sizing(), 5
+    )
+    assert isinstance(result, Array)
+    assert result.shape == (10,)
+
+
+def test_write_level0_empty_source_creates_array_writes_nothing(
+    tmp_path, continuous_source
+):
+    group = open_group(tmp_path / "bundle")
+    write_level0(
+        group,
+        continuous_source(np.empty(0, np.float32)),
+        _plan(0),
+        _sizing(),
+        5,
+    )
+    arr = open_group(tmp_path / "bundle")["0"]
+    assert arr.shape == (0,)
+    assert arr[:].shape == (0,)
+
+
+def test_write_level0_rejects_non_raw_plan(tmp_path, continuous_source):
+    group = open_group(tmp_path / "bundle")
+    non_raw = LevelPlan(level=1, shape=(5, 2), period_us=125.0)
+    with pytest.raises(ValueError, match="raw"):
+        write_level0(
+            group,
+            continuous_source(np.arange(5, dtype=np.float32)),
+            non_raw,
+            _sizing(),
+            5,
+        )
+
+
+def test_write_level_from_previous_folds_level0_to_level1(tmp_path):
+    data = np.arange(20, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    plan, sizing = _fold_plan(1, data.shape[0], 4)
+    write_level_from_previous(group, _make_prev(group, data), plan, sizing, 5)
+    stored = open_group(tmp_path / "bundle")["1"][:]
+    assert np.array_equal(stored, fold_block(data))
+    assert stored.dtype == np.float32
+
+
+def test_write_level_from_previous_folds_envelope_level(tmp_path):
+    rng = np.random.default_rng(0)
+    data = rng.standard_normal((13, 2)).astype(np.float32)
+    group = open_group(tmp_path / "bundle")
+    plan, sizing = _fold_plan(2, data.shape[0], 4)
+    write_level_from_previous(group, _make_prev(group, data), plan, sizing, 5)
+    stored = open_group(tmp_path / "bundle")["2"][:]
+    assert np.array_equal(stored, fold_block(data))
+
+
+@pytest.mark.parametrize("chunk0", [1, 3, 4, 5, 7, 16, 1000])
+def test_write_level_from_previous_chunk_boundary_exact(tmp_path, chunk0):
+    data = np.arange(37, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    plan, sizing = _fold_plan(1, data.shape[0], chunk0)
+    write_level_from_previous(group, _make_prev(group, data), plan, sizing, 5)
+    stored = open_group(tmp_path / "bundle")["1"][:]
+    assert np.array_equal(stored, fold_block(data))
+
+
+def test_write_level_from_previous_sets_period_us_attr(tmp_path):
+    data = np.arange(20, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    plan, sizing = _fold_plan(1, data.shape[0], 4)
+    write_level_from_previous(group, _make_prev(group, data), plan, sizing, 5)
+    assert dict(open_group(tmp_path / "bundle")["1"].attrs) == {
+        "period_us": 125.0
+    }
+
+
+def test_write_level_from_previous_returns_the_array(tmp_path):
+    data = np.arange(20, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    plan, sizing = _fold_plan(1, data.shape[0], 4)
+    result = write_level_from_previous(
+        group, _make_prev(group, data), plan, sizing, 5
+    )
+    assert isinstance(result, Array)
+    assert result.shape == (5, 2)
+
+
+def test_write_level_from_previous_empty_prev(tmp_path):
+    data = np.empty((0,), dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    plan, sizing = _fold_plan(1, 0, 4)
+    write_level_from_previous(group, _make_prev(group, data), plan, sizing, 5)
+    arr = open_group(tmp_path / "bundle")["1"]
+    assert arr.shape == (0, 2)
+    assert arr[:].shape == (0, 2)
+
+
+def test_write_level_from_previous_rejects_level0_plan(tmp_path):
+    data = np.arange(20, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    sizing = ChunkShard(chunk_shape=(4, 2), shard_shape=(4, 2))
+    with pytest.raises(ValueError, match="level"):
+        write_level_from_previous(
+            group, _make_prev(group, data), _plan(5), sizing, 5
+        )
+
+
+_MULTI_OPTS = WriteOpts(
+    min_bins=2, max_levels=8, inner_len=16, target_shard_bytes=256
+)
+
+
+def test_write_continuous_channel_creates_subgroup_with_attrs(
+    tmp_path, continuous_source
+):
+    samples = np.arange(64, dtype=np.float32)
+    parent = open_group(tmp_path / "bundle")
+    src = continuous_source(samples, id="N:ch:xyz", rate_hz=32000.0, start_us=7)
+    write_continuous_channel(parent, 3, src, opts=_MULTI_OPTS)
+    grp = open_group(tmp_path / "bundle")["3"]
+    assert dict(grp.attrs) == channel_group_attrs(
+        "N:ch:xyz", 32000.0, 7, "continuous"
+    )
+
+
+def test_write_continuous_channel_level0_round_trips(
+    tmp_path, continuous_source
+):
+    samples = np.arange(64, dtype=np.float32)
+    parent = open_group(tmp_path / "bundle")
+    write_continuous_channel(
+        parent, 0, continuous_source(samples), opts=_MULTI_OPTS
+    )
+    assert np.array_equal(open_group(tmp_path / "bundle")["0"]["0"][:], samples)
+
+
+def test_write_continuous_channel_each_level_folds_from_below(
+    tmp_path, continuous_source
+):
+    samples = np.arange(64, dtype=np.float32)
+    parent = open_group(tmp_path / "bundle")
+    write_continuous_channel(
+        parent, 0, continuous_source(samples), opts=_MULTI_OPTS
+    )
+    grp = open_group(tmp_path / "bundle")["0"]
+    n_levels = len(plan_levels(64, 31.25, 8, 2))
+    assert n_levels >= 3
+    for k in range(1, n_levels):
+        below = grp[str(k - 1)][:]
+        assert np.array_equal(grp[str(k)][:], fold_block(below))
+
+
+def test_write_continuous_channel_level_arrays_and_periods(
+    tmp_path, continuous_source
+):
+    samples = np.arange(64, dtype=np.float32)
+    parent = open_group(tmp_path / "bundle")
+    write_continuous_channel(
+        parent, 0, continuous_source(samples), opts=_MULTI_OPTS
+    )
+    grp = open_group(tmp_path / "bundle")["0"]
+    plans = plan_levels(64, 31.25, 8, 2)
+    assert sorted(grp.array_keys()) == sorted(str(p.level) for p in plans)
+    for p in plans:
+        assert dict(grp[str(p.level)].attrs) == {"period_us": p.period_us}
+        assert grp[str(p.level)].shape == p.shape
+
+
+def test_write_continuous_channel_degenerate_single_level(
+    tmp_path, continuous_source
+):
+    samples = np.arange(3, dtype=np.float32)
+    parent = open_group(tmp_path / "bundle")
+    write_continuous_channel(
+        parent, 0, continuous_source(samples), opts=WriteOpts()
+    )
+    grp = open_group(tmp_path / "bundle")["0"]
+    assert list(grp.array_keys()) == ["0"]
+    assert np.array_equal(grp["0"][:], samples)
+
+
+def test_write_continuous_channel_returns_none(tmp_path, continuous_source):
+    samples = np.arange(64, dtype=np.float32)
+    parent = open_group(tmp_path / "bundle")
+    result = write_continuous_channel(
+        parent, 0, continuous_source(samples), opts=_MULTI_OPTS
+    )
+    assert result is None

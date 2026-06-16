@@ -3,7 +3,8 @@ from typing import get_args
 
 import pytest
 
-from processor.types import ChannelKind, ChunkShard, LevelPlan
+from processor.constants import INNER_CHUNK_SAMPLES, TARGET_SHARD_BYTES
+from processor.types import ChannelKind, ChunkShard, LevelPlan, WriteOpts
 
 
 def test_construction_stores_fields():
@@ -49,3 +50,33 @@ def test_chunkshard_frozen_rejects_mutation():
 
 def test_channelkind_literal_values():
     assert get_args(ChannelKind.__value__) == ("continuous", "unit")
+
+
+def test_writeopts_defaults():
+    opts = WriteOpts()
+    assert opts.zstd_level == 5
+    assert opts.max_levels == 8
+    assert opts.min_bins == 1024
+    assert opts.inner_len == INNER_CHUNK_SAMPLES
+    assert opts.target_shard_bytes == TARGET_SHARD_BYTES
+
+
+def test_writeopts_overrides():
+    opts = WriteOpts(
+        zstd_level=9,
+        max_levels=3,
+        min_bins=256,
+        inner_len=4096,
+        target_shard_bytes=2048,
+    )
+    assert opts.zstd_level == 9
+    assert opts.max_levels == 3
+    assert opts.min_bins == 256
+    assert opts.inner_len == 4096
+    assert opts.target_shard_bytes == 2048
+
+
+def test_writeopts_frozen_rejects_mutation():
+    opts = WriteOpts()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        opts.zstd_level = 1
