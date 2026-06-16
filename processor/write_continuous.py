@@ -4,9 +4,11 @@ from typing import cast
 
 import numpy as np
 
-from processor.attrs import level_array_attrs
+from processor.attrs import channel_group_attrs, level_array_attrs
 from processor.fold import fold_block
+from processor.planning import level0_period_us, plan_levels
 from processor.protocols import ContinuousChannelSource
+from processor.sizing import chunk_and_shard
 from processor.streaming import (
     BlockReadableArray,
     _rebuffer_and_fold,
@@ -121,4 +123,36 @@ def write_continuous_channel(
     compressed per opts. Returns nothing. A channel that plans to a single
     level writes only level 0.
     """
-    group = create_group_with_attrs(parent, str(index), source.attributes())
+    attributes = channel_group_attrs(
+        source.id, source.rate_hz(), source.start_us(), "continuous"
+    )
+    group = create_group_with_attrs(parent, str(index), attributes)
+    previous = None
+    for plan in plan_levels(
+        source.num_samples(),
+        level0_period_us(source.rate_hz()),
+        opts.max_levels,
+        opts.min_bins,
+    ):
+        sizing = chunk_and_shard(
+            level_shape=plan.shape,
+            dtype_size=4,
+            inner_len=opts.inner_len,
+            target_shard_bytes=opts.target_shard_bytes,
+        )
+        if previous is None:
+            previous = write_level0(
+                group=group,
+                source=source,
+                plan=plan,
+                sizing=sizing,
+                zstd_level=opts.zstd_level,
+            )
+        else:
+            previous = write_level_from_previous(
+                group=group,
+                prev=previous,
+                plan=plan,
+                sizing=sizing,
+                zstd_level=opts.zstd_level,
+            )

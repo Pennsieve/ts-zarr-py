@@ -33,6 +33,15 @@ class LevelPlan:
         """
         return self.level == 0
 
+    @property
+    def name(self) -> str:
+        """Canonical Zarr array key for this level.
+
+        Levels are stored under their decimal level number, so level 0 maps to
+        "0", level 1 to "1", etc.
+        """
+        return str(self.level)
+
 
 @dataclass(frozen=True, slots=True)
 class ChunkShard:

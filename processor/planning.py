@@ -36,6 +36,14 @@ def level_num_bins(num_samples: int, level: int) -> int:
     return -(-num_samples // samples_per_bin)
 
 
+def level0_period_us(sample_rate_hz: float) -> float:
+    """Return level-0 raw sample spacing in microseconds.
+
+    sample_rate_hz is samples per second.
+    """
+    return 1_000_000.0 / sample_rate_hz
+
+
 def level_period_us(level0_period_us: float, level: int) -> float:
     """Return the microseconds that one bin spans at the given pyramid level.
 
