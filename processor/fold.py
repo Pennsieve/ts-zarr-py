@@ -3,7 +3,7 @@
 import numpy as np
 import numpy.typing as npt
 
-from processor.constants import DECIMATION_FACTOR
+from processor.constants import DECIMATION_FACTOR, ENVELOPE_PAIR_SIZE
 
 
 def _block_split(
@@ -32,7 +32,9 @@ def fold_raw_block(raw: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     block = DECIMATION_FACTOR
     n_full, tail_len = _block_split(raw.shape[0], block)
     split = n_full * block
-    out = np.empty((n_full + (1 if tail_len else 0), 2), dtype=np.float32)
+    out = np.empty(
+        (n_full + (1 if tail_len else 0), ENVELOPE_PAIR_SIZE), dtype=np.float32
+    )
     if n_full:
         full = raw[:split].reshape(n_full, block)
         out[:n_full, 0] = full.min(axis=1)
@@ -56,9 +58,11 @@ def fold_pair_block(pairs: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     block = DECIMATION_FACTOR
     n_full, tail_len = _block_split(pairs.shape[0], block)
     split = n_full * block
-    out = np.empty((n_full + (1 if tail_len else 0), 2), dtype=np.float32)
+    out = np.empty(
+        (n_full + (1 if tail_len else 0), ENVELOPE_PAIR_SIZE), dtype=np.float32
+    )
     if n_full:
-        full = pairs[:split].reshape(n_full, block, 2)
+        full = pairs[:split].reshape(n_full, block, ENVELOPE_PAIR_SIZE)
         out[:n_full, 0] = full[:, :, 0].min(axis=1)
         out[:n_full, 1] = full[:, :, 1].max(axis=1)
     if tail_len:

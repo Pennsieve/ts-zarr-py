@@ -1,6 +1,10 @@
 """Pyramid level planning: level counts, shapes, and time resolutions."""
 
-from processor.constants import DECIMATION_FACTOR
+from processor.constants import (
+    DECIMATION_FACTOR,
+    ENVELOPE_PAIR_SIZE,
+    MICROSECONDS_PER_SECOND,
+)
 from processor.types import LevelPlan
 
 
@@ -41,7 +45,7 @@ def level0_period_us(sample_rate_hz: float) -> float:
 
     sample_rate_hz is samples per second.
     """
-    return 1_000_000.0 / sample_rate_hz
+    return MICROSECONDS_PER_SECOND / sample_rate_hz
 
 
 def level_period_us(level0_period_us: float, level: int) -> float:
@@ -64,7 +68,7 @@ def level_shape(num_samples: int, level: int) -> tuple[int, ...]:
     return (
         (num_samples,)
         if level == 0
-        else (level_num_bins(num_samples, level), 2)
+        else (level_num_bins(num_samples, level), ENVELOPE_PAIR_SIZE)
     )
 
 

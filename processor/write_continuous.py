@@ -5,6 +5,7 @@ from typing import cast
 import numpy as np
 
 from processor.attrs import channel_group_attrs, level_array_attrs
+from processor.constants import FLOAT32_BYTES
 from processor.fold import fold_block
 from processor.planning import level0_period_us, plan_levels
 from processor.protocols import ContinuousChannelSource
@@ -136,7 +137,7 @@ def write_continuous_channel(
     ):
         sizing = chunk_and_shard(
             level_shape=plan.shape,
-            dtype_size=4,
+            dtype_size=FLOAT32_BYTES,
             inner_len=opts.inner_len,
             target_shard_bytes=opts.target_shard_bytes,
         )
