@@ -37,7 +37,7 @@ def test_level_count_custom_min_bins():
 
 def test_level_count_threshold_off_by_one():
     # At min_bins=100: level 1 holds N//4 bins. N=400 gives exactly 100 (kept),
-    # N=399 gives 99 (< min_bins, so level 1 is dropped) — the boundary.
+    # N=399 gives 99 (< min_bins, so level 1 is dropped) - the boundary.
     assert level_count(399, min_bins=100) == 1
     assert level_count(400, min_bins=100) == 2
 
