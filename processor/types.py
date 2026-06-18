@@ -57,7 +57,7 @@ class ChunkShard:
 
 @dataclass(frozen=True, slots=True)
 class WriteOpts:
-    """Tunable knobs shared by the channel writers.
+    """Tunable settings shared by the channel writers.
 
     zstd_level is the Zstd compression level for every array. max_levels and
     min_bins bound the pyramid (passed to plan_levels). inner_len and

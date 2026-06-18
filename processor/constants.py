@@ -8,6 +8,9 @@ DECIMATION_FACTOR: Final = 4
 ENVELOPE_PAIR_SIZE: Final = 2
 """Length of the trailing (min, max) axis on every coarser pyramid level."""
 
+MAX_UNIT_CLUSTERS: Final = 256
+"""Most distinct clusters a unit channel can hold (the uint8 cluster-id range)."""
+
 FLOAT32_BYTES: Final = 4
 """Byte width of one float32 sample, for shard-size computation."""
 

@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from pynwb.testing.mock.ecephys import mock_ElectricalSeries
 
 
 class ArrayContinuousSource:
@@ -91,3 +92,10 @@ class ArrayUnitSource:
 @pytest.fixture
 def unit_source():
     return ArrayUnitSource
+
+
+@pytest.fixture
+def electrical_series():
+    # Factory for a real in-memory NWB ElectricalSeries (builds its own
+    # electrode table); accepts data/rate/starting_time overrides.
+    return mock_ElectricalSeries

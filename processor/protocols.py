@@ -8,13 +8,12 @@ import numpy.typing as npt
 
 @runtime_checkable
 class ContinuousChannelSource(Protocol):
-    """A continuous channel the writer reads raw samples from.
+    """A continuous channel the writer reads raw samples from."""
 
-    The id attribute is the opaque upstream identifier the reader joins on for
-    display metadata.
-    """
-
-    id: str
+    @property
+    def id(self) -> str:
+        """Opaque upstream channel identifier the reader joins display metadata on."""
+        ...
 
     def rate_hz(self) -> float:
         """Return the channel's sample rate in hertz."""
@@ -37,11 +36,13 @@ class ContinuousChannelSource(Protocol):
 class UnitChannelSource(Protocol):
     """A unit (spike) channel the writer reads events, classifications, and waveforms from.
 
-    The id attribute is the opaque upstream identifier the reader joins on for
-    display metadata. rate_hz is the waveform sample rate, not an event rate.
+    rate_hz is the waveform sample rate, not an event rate.
     """
 
-    id: str
+    @property
+    def id(self) -> str:
+        """Opaque upstream unit identifier the reader joins display metadata on."""
+        ...
 
     def rate_hz(self) -> float:
         """Return the waveform sample rate in hertz."""
