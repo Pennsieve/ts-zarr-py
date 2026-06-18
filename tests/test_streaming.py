@@ -93,6 +93,21 @@ def test_rebuffer_and_fold_carry_stays_below_group(seed):
     )
 
 
+def test_rebuffer_and_fold_final_carry_is_group_minus_one():
+    # Split 7 rows as [4, 3] with group=4: the first block folds whole, leaving
+    # the trailing 3 (= group - 1) to be carried and flushed in the final fold.
+    arr = np.arange(7, dtype=np.float32)
+    group = 4
+    seen_lengths = []
+
+    def recording_fold(block):
+        seen_lengths.append(block.shape[0])
+        return fold_raw_block(block)
+
+    list(_rebuffer_and_fold(_split(arr, [4, 3]), recording_fold, group=group))
+    assert seen_lengths == [4, group - 1]
+
+
 def test_rebuffer_and_fold_empty_stream_yields_nothing():
     assert list(_rebuffer_and_fold([], fold_raw_block)) == []
 

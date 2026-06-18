@@ -153,6 +153,25 @@ def test_fold_pair_block_composes_with_raw_exactly():
     assert level2[0, 1] == raw.max()
 
 
+@pytest.mark.parametrize("m", [16, 17, 18, 19, 32, 33])
+def test_fold_pair_block_composes_with_raw_over_tails(m):
+    rng = np.random.default_rng(3)
+    raw = rng.standard_normal(m).astype(np.float32)
+    level2 = fold_pair_block(fold_raw_block(raw))
+    groups = [raw[i : i + 16] for i in range(0, m, 16)]
+    expected = np.stack(
+        [[g.min() for g in groups], [g.max() for g in groups]], axis=1
+    ).astype(np.float32)
+    assert np.array_equal(level2, expected)
+
+
+def test_fold_pair_block_nan_in_max_column_propagates():
+    pairs = np.array([[1, 3], [2, np.nan], [0, 4], [5, 6]], dtype=np.float32)
+    out = fold_pair_block(pairs)
+    assert out[0, 0] == 0.0
+    assert np.isnan(out[0, 1])
+
+
 def test_fold_block_rank1_delegates_to_raw():
     raw = np.arange(8, dtype=np.float32)
     assert np.array_equal(fold_block(raw), fold_raw_block(raw))

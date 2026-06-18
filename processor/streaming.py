@@ -36,7 +36,7 @@ def _rebuffer_and_fold(
     """Fold a stream of blocks into the next coarser level, buffering across boundaries.
 
     The blocks (rank-1 raw runs or rank-2 (min, max) runs) are conceptually
-    concatenated and folded by fold_fn in aligned groups of `group` rows; the
+    concatenated and folded by fold_fn in aligned groups of group rows; the
     sub-group leftover at each block boundary is carried onto the next block so
     the split into blocks does not affect the result. The concatenation of the
     yielded arrays equals fold_fn applied to the whole concatenated input, but

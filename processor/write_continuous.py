@@ -1,8 +1,10 @@
 """Compose streaming and zarr I/O to write one continuous channel's levels."""
 
+from collections.abc import Iterable
 from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 
 from processor.attrs import channel_group_attrs, level_array_attrs
 from processor.constants import FLOAT32_BYTES
@@ -24,6 +26,16 @@ from processor.zarr_io import (
     create_group_with_attrs,
     write_region,
 )
+
+
+def _write_blocks(
+    array: ZarrArray, blocks: Iterable[npt.NDArray[np.float32]]
+) -> None:
+    """Write each block to array at its running axis-0 offset."""
+    start = 0
+    for block in blocks:
+        write_region(array, start, block)
+        start += block.shape[0]
 
 
 def write_level0(
@@ -55,11 +67,7 @@ def write_level0(
         level_array_attrs(plan.period_us),
         zstd_level,
     )
-    start = 0
-    for block in iter_raw_blocks(source, sizing.chunk_shape[0]):
-        write_region(array, start, block)
-        start += block.shape[0]
-
+    _write_blocks(array, iter_raw_blocks(source, sizing.chunk_shape[0]))
     return array
 
 
@@ -95,16 +103,15 @@ def write_level_from_previous(
         zstd_level,
     )
 
-    start = 0
-    for block in _rebuffer_and_fold(
-        iter_array_blocks(
-            cast("BlockReadableArray", prev), sizing.chunk_shape[0]
+    _write_blocks(
+        array,
+        _rebuffer_and_fold(
+            iter_array_blocks(
+                cast("BlockReadableArray", prev), sizing.chunk_shape[0]
+            ),
+            fold_block,
         ),
-        fold_block,
-    ):
-        write_region(array, start, block)
-        start += block.shape[0]
-
+    )
     return array
 
 

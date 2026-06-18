@@ -14,6 +14,12 @@ MAX_UNIT_CLUSTERS: Final = 256
 FLOAT32_BYTES: Final = 4
 """Byte width of one float32 sample, for shard-size computation."""
 
+INT64_BYTES: Final = 8
+"""Byte width of one int64 event timestamp, for shard-size computation."""
+
+UINT8_BYTES: Final = 1
+"""Byte width of one uint8 cluster id, for shard-size computation."""
+
 MICROSECONDS_PER_SECOND: Final = 1_000_000.0
 """Microseconds in one second, for converting a sample rate to a period."""
 

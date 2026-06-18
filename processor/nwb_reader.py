@@ -8,7 +8,7 @@ from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 from pynwb.misc import Units
 
-from processor.constants import MAX_UNIT_CLUSTERS
+from processor.constants import MAX_UNIT_CLUSTERS, MICROSECONDS_PER_SECOND
 
 
 class NwbContinuousSource:
@@ -59,7 +59,7 @@ class NwbContinuousSource:
         start_s: float = (
             self._session_start_time.timestamp() + self._series.starting_time
         )
-        return round(start_s * 1_000_000)
+        return round(start_s * MICROSECONDS_PER_SECOND)
 
     def num_samples(self) -> int:
         """Return the total number of raw samples in the channel.
@@ -123,7 +123,9 @@ class NwbUnitSource:
 
         self._id = str(units.name)
         self._rate_hz = float(waveform_rate_hz)
-        self._start_us = round(session_start_time.timestamp() * 1_000_000)
+        self._start_us = round(
+            session_start_time.timestamp() * MICROSECONDS_PER_SECOND
+        )
 
         session_s = session_start_time.timestamp()
         times: list[npt.NDArray[np.float64]] = []
@@ -144,7 +146,7 @@ class NwbUnitSource:
         all_times = np.concatenate(times)
         order = np.argsort(all_times, kind="stable")
         self._events = (
-            ((all_times[order] + session_s) * 1_000_000)
+            ((all_times[order] + session_s) * MICROSECONDS_PER_SECOND)
             .round()
             .astype(np.int64)
         )

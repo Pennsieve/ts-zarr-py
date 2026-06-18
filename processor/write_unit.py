@@ -1,9 +1,12 @@
 """Compose streaming and zarr I/O to write one unit (spike) channel's arrays."""
 
+from collections.abc import Callable
+
 import numpy as np
+import numpy.typing as npt
 
 from processor.attrs import channel_group_attrs, waveform_array_attrs
-from processor.constants import FLOAT32_BYTES
+from processor.constants import FLOAT32_BYTES, INT64_BYTES, UINT8_BYTES
 from processor.planning import level0_period_us
 from processor.protocols import UnitChannelSource
 from processor.sizing import chunk_and_shard
@@ -15,6 +18,28 @@ from processor.zarr_io import (
     create_group_with_attrs,
     write_region,
 )
+
+
+def _write_source_blocks[T: np.generic](
+    array: ZarrArray,
+    n: int,
+    block_len: int,
+    reader: Callable[[int, int], npt.NDArray[T]],
+    on_block: Callable[[npt.NDArray[T]], None] | None = None,
+) -> None:
+    """Stream a source's rows into array in chunk-sized axis-0 blocks.
+
+    Reads each [begin, begin + block_len) window via reader and writes it at the
+    running axis-0 offset; on_block, when given, inspects each block before its
+    write (used to validate ordering). Writes nothing when n is zero.
+    """
+    start = 0
+    for begin in range(0, n, block_len):
+        block = reader(begin, min(begin + block_len, n))
+        if on_block is not None:
+            on_block(block)
+        write_region(array, start, block)
+        start += block.shape[0]
 
 
 def write_events_array(
@@ -42,19 +67,23 @@ def write_events_array(
         attrs={},
         zstd_level=zstd_level,
     )
-    n = source.num_events()
-    block_len = sizing.chunk_shape[0]
     prev_last: np.int64 | None = None
-    start = 0
-    for begin in range(0, n, block_len):
-        block = source.read_events(begin, min(begin + block_len, n))
+
+    def _check_ascending(block: npt.NDArray[np.int64]) -> None:
+        nonlocal prev_last
         descends_inside = bool((block[1:] < block[:-1]).any())
         descends_at_seam = prev_last is not None and block[0] < prev_last
         if descends_inside or descends_at_seam:
             raise ValueError("event timestamps must be non-decreasing")
-        write_region(array, start, block)
         prev_last = block[-1]
-        start += block.shape[0]
+
+    _write_source_blocks(
+        array,
+        source.num_events(),
+        sizing.chunk_shape[0],
+        source.read_events,
+        _check_ascending,
+    )
     return array
 
 
@@ -83,14 +112,12 @@ def write_units_array(
         zstd_level=zstd_level,
     )
 
-    n = source.num_events()
-    block_len = sizing.chunk_shape[0]
-    start = 0
-    for begin in range(0, n, block_len):
-        block = source.read_units(begin, min(begin + block_len, n))
-        write_region(array, start, block)
-        start += block.shape[0]
-
+    _write_source_blocks(
+        array,
+        source.num_events(),
+        sizing.chunk_shape[0],
+        source.read_units,
+    )
     return array
 
 
@@ -122,14 +149,12 @@ def write_waveforms_array(
         zstd_level=zstd_level,
     )
 
-    n = source.num_events()
-    block_len = sizing.chunk_shape[0]
-    start = 0
-    for begin in range(0, n, block_len):
-        block = source.read_waveforms(begin, min(begin + block_len, n))
-        write_region(array, start, block)
-        start += block.shape[0]
-
+    _write_source_blocks(
+        array,
+        source.num_events(),
+        sizing.chunk_shape[0],
+        source.read_waveforms,
+    )
     return array
 
 
@@ -167,13 +192,13 @@ def write_unit_channel(
     write_events_array(
         group,
         source,
-        _sizing((n,), np.dtype(np.int64).itemsize),
+        _sizing((n,), INT64_BYTES),
         opts.zstd_level,
     )
     write_units_array(
         group,
         source,
-        _sizing((n,), np.dtype(np.uint8).itemsize),
+        _sizing((n,), UINT8_BYTES),
         opts.zstd_level,
     )
     write_waveforms_array(
