@@ -8,9 +8,20 @@ from pynwb.testing.mock.ecephys import mock_ElectricalSeries
 class ArrayContinuousSource:
     """In-memory ContinuousChannelSource backed by a float32 array, for tests."""
 
-    def __init__(self, samples, *, id="ch-0", rate_hz=32000.0, start_us=0):
+    def __init__(
+        self,
+        samples,
+        *,
+        id="ch-0",
+        rate_hz=32000.0,
+        start_us=0,
+        name="ch-0",
+        unit="uV",
+    ):
         self._samples = np.asarray(samples, dtype=np.float32)
         self.id = id
+        self.name = name
+        self.unit = unit
         self._rate_hz = rate_hz
         self._start_us = start_us
 
@@ -49,6 +60,8 @@ class ArrayUnitSource:
         id="unit-0",
         rate_hz=32000.0,
         start_us=0,
+        name="unit-0",
+        unit="uV",
     ):
         self._events = np.asarray(events, dtype=np.int64)
         n = int(self._events.shape[0])
@@ -64,6 +77,8 @@ class ArrayUnitSource:
             else np.asarray(waveforms, dtype=np.float32)
         )
         self.id = id
+        self.name = name
+        self.unit = unit
         self._rate_hz = rate_hz
         self._start_us = start_us
 

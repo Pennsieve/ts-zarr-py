@@ -175,7 +175,12 @@ def write_unit_channel(
     NWB adapter's responsibility.
     """
     attributes = channel_group_attrs(
-        source.id, source.rate_hz(), source.start_us(), "unit"
+        source.id,
+        source.rate_hz(),
+        source.start_us(),
+        "unit",
+        source.name,
+        source.unit,
     )
     group = create_group_with_attrs(parent, str(index), attributes)
 

@@ -28,3 +28,13 @@ INNER_CHUNK_SAMPLES: Final = 2**18
 
 TARGET_SHARD_BYTES: Final = 16 * 2**20
 """Target outer shard size in bytes (~16 MiB) for sharded pyramid arrays."""
+
+UNIT_TO_UV: Final = {
+    "volts": 1e6,
+    "v": 1e6,
+    "millivolts": 1e3,
+    "mv": 1e3,
+    "microvolts": 1.0,
+    "uv": 1.0,
+}
+"""unit conversion to microvolts."""

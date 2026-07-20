@@ -1,5 +1,6 @@
 """Concrete NWB adapters implementing the channel-source protocols."""
 
+from collections.abc import Iterator
 from datetime import datetime
 
 import numpy as np
@@ -8,7 +9,11 @@ from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 from pynwb.misc import Units
 
-from processor.constants import MAX_UNIT_CLUSTERS, MICROSECONDS_PER_SECOND
+from processor.constants import (
+    MAX_UNIT_CLUSTERS,
+    MICROSECONDS_PER_SECOND,
+    UNIT_TO_UV,
+)
 
 
 class NwbContinuousSource:
@@ -42,6 +47,30 @@ class NwbContinuousSource:
         row_index = electrodes.data[self._channel_index]
         return str(electrodes.table.id[row_index])
 
+    @property
+    def name(self) -> str:
+        """Human-readable display label for this channel.
+
+        Taken from the selected electrode's channel_name column, falling back to
+        its label column, then to the opaque id when the table carries neither.
+        """
+        electrodes = self._series.electrodes
+        row_index = electrodes.data[self._channel_index]
+        table = electrodes.table
+        for column in ("channel_name", "label"):
+            if column in table.colnames:
+                return str(table[column][row_index])
+        return self.id
+
+    @property
+    def unit(self) -> str:
+        """Physical unit of the samples this source yields.
+
+        Always microvolts ("uV"): read_samples normalizes every series to
+        microvolts, so the stored unit is fixed regardless of the source's own.
+        """
+        return "uV"
+
     def rate_hz(self) -> float:
         """Return the channel's sample rate in hertz.
 
@@ -70,21 +99,30 @@ class NwbContinuousSource:
         return int(self._series.data.shape[0])
 
     def read_samples(self, start: int, stop: int) -> npt.NDArray[np.float32]:
-        """Return the half-open [start, stop) sample window as float32.
+        """Return the half-open [start, stop) sample window as float32 microvolts.
 
         Reads this channel's column of the ElectricalSeries over the given
-        axis-0 range in one HDF5 read and converts it to physical units via the
-        series' affine scaling: raw times the conversion (times the per-channel
-        conversion when the series carries one), plus the offset. The result is
-        cast to float32. An empty range (stop <= start) yields a length-0 array.
+        axis-0 range in one HDF5 read and scales it to microvolts: the series'
+        affine scaling (raw times the conversion, times the per-channel
+        conversion when the series carries one, plus the offset) followed by the
+        volts-family to microvolts factor for the series' unit. Raises ValueError
+        if the series' unit is not a recognized volts family. An empty range
+        (stop <= start) yields a length-0 array.
         """
         column: npt.NDArray[np.float64] = np.asarray(
             self._series.data[start:stop, self._channel_index],
             dtype=np.float64,
         )
-        conversion = float(self._series.conversion)
-        offset = float(self._series.offset)
-        return (column * conversion + offset).astype(np.float32)
+        scaled = column * float(self._series.conversion)
+        if self._series.channel_conversion is not None:
+            scaled = scaled * float(
+                self._series.channel_conversion[self._channel_index]
+            )
+        scaled = scaled + float(self._series.offset)
+        unit = str(self._series.unit).lower()
+        if unit not in UNIT_TO_UV:
+            raise ValueError(f"unsupported ElectricalSeries unit: {unit!r}")
+        return (scaled * UNIT_TO_UV[unit]).astype(np.float32)
 
 
 class NwbUnitSource:
@@ -162,6 +200,26 @@ class NwbUnitSource:
         """
         return self._id
 
+    @property
+    def name(self) -> str:
+        """Human-readable display label for this unit channel.
+
+        The Units table's name, the only human-readable handle a Units table
+        carries.
+        """
+        return self._id
+
+    @property
+    def unit(self) -> str:
+        """Physical unit of the samples this source yields.
+
+        Reported as microvolts ("uV") for consistency with continuous channels
+        and the bundle's microvolt convention. A Units table's waveform_mean
+        carries no unit metadata, so the waveform amplitudes are passed through
+        unscaled rather than normalized from a guessed source unit.
+        """
+        return "uV"
+
     def rate_hz(self) -> float:
         """Return the waveform sample rate in hertz.
 
@@ -216,6 +274,23 @@ class NwbUnitSource:
         return self._waveforms[start:stop]
 
 
+def _iter_units_tables(nwbfile: NWBFile) -> Iterator[Units]:
+    """Yield every Units table in the file in deterministic discovery order.
+
+    The root Units table first (when present), then the Units containers of
+    each processing module, modules taken in name order and their containers in
+    name order, so the same file always produces the same unit-channel order.
+    """
+    if nwbfile.units is not None:
+        yield nwbfile.units
+    for module_name in sorted(nwbfile.processing):
+        module = nwbfile.processing[module_name]
+        for container_name in sorted(module.data_interfaces):
+            container = module.data_interfaces[container_name]
+            if isinstance(container, Units):
+                yield container
+
+
 def build_sources_from_nwb(
     nwbfile: NWBFile,
 ) -> tuple[list[NwbContinuousSource], list[NwbUnitSource]]:
@@ -223,13 +298,15 @@ def build_sources_from_nwb(
 
     Returns the continuous sources and the unit sources, in that order. Every
     ElectricalSeries in the file's acquisition contributes one continuous source
-    per channel column, in series order then channel order; the file's Units
-    table, when present, contributes one unit source. The recording's session
-    start time places all timestamps in absolute microseconds. Unit waveforms
-    have no rate of their own, so they reuse the sample rate of the first
-    ElectricalSeries. A file with no ElectricalSeries yields no continuous
+    per channel column, in series order then channel order. Each Units table
+    contributes one unit source, discovered as the root table then the tables in
+    processing modules (modules by name, containers by name). The recording's
+    session start time places all timestamps in absolute microseconds. Unit
+    waveforms have no rate of their own, so they reuse the sample rate of the
+    first ElectricalSeries. A file with no ElectricalSeries yields no continuous
     sources; one with no Units table yields no unit sources. Raises ValueError
-    if a Units table is present but no ElectricalSeries supplies a waveform rate.
+    if any Units table is present but no ElectricalSeries supplies a waveform
+    rate.
     """
     session_start = nwbfile.session_start_time
     series = [
@@ -244,12 +321,10 @@ def build_sources_from_nwb(
     ]
 
     units: list[NwbUnitSource] = []
-    if nwbfile.units is not None:
+    for table in _iter_units_tables(nwbfile):
         if not series:
             raise ValueError("unit channels need an ElectricalSeries rate")
         waveform_rate_hz = float(series[0].rate)
-        units.append(
-            NwbUnitSource(nwbfile.units, waveform_rate_hz, session_start)
-        )
+        units.append(NwbUnitSource(table, waveform_rate_hz, session_start))
 
     return continuous, units

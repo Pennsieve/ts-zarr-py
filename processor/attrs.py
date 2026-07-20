@@ -13,16 +13,30 @@ def root_attrs() -> dict[str, object]:
 
 
 def channel_group_attrs(
-    id: str, rate_hz: float, start_us: int, kind: ChannelKind
+    id: str,
+    rate_hz: float,
+    start_us: int,
+    kind: ChannelKind,
+    name: str = "",
+    unit: str = "",
 ) -> dict[str, object]:
     """Return the channel-group zarr.json attributes for one channel.
 
-    The four keys the reader joins on: id (opaque upstream identifier), rate_hz
+    The six keys the reader joins on: id (opaque upstream identifier), rate_hz
     (sample rate; for unit channels the waveform rate), start_us (wall-clock
-    microseconds of sample 0 / recording start), and kind ("continuous" or
-    "unit"). Values pass through unchanged.
+    microseconds of sample 0 / recording start), kind ("continuous" or "unit"),
+    name (human-readable display label), and unit (physical unit of the stored
+    samples, e.g. "uV") — the two that make the bundle self-describing. Values
+    pass through unchanged.
     """
-    return {"id": id, "rate_hz": rate_hz, "start_us": start_us, "kind": kind}
+    return {
+        "id": id,
+        "rate_hz": rate_hz,
+        "start_us": start_us,
+        "kind": kind,
+        "name": name,
+        "unit": unit,
+    }
 
 
 def level_array_attrs(period_us: float) -> dict[str, object]:

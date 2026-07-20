@@ -205,7 +205,7 @@ def test_write_continuous_channel_creates_subgroup_with_attrs(
     write_continuous_channel(parent, 3, src, opts=_MULTI_OPTS)
     grp = open_group(tmp_path / "bundle")["3"]
     assert dict(grp.attrs) == channel_group_attrs(
-        "N:ch:xyz", 32000.0, 7, "continuous"
+        "N:ch:xyz", 32000.0, 7, "continuous", src.name, src.unit
     )
 
 

@@ -15,6 +15,16 @@ class ContinuousChannelSource(Protocol):
         """Opaque upstream channel identifier the reader joins display metadata on."""
         ...
 
+    @property
+    def name(self) -> str:
+        """Human-readable display label for the channel."""
+        ...
+
+    @property
+    def unit(self) -> str:
+        """Physical unit of the stored samples (e.g. "uV"); makes the bundle self-describing."""
+        ...
+
     def rate_hz(self) -> float:
         """Return the channel's sample rate in hertz."""
         ...
@@ -42,6 +52,16 @@ class UnitChannelSource(Protocol):
     @property
     def id(self) -> str:
         """Opaque upstream unit identifier the reader joins display metadata on."""
+        ...
+
+    @property
+    def name(self) -> str:
+        """Human-readable display label for the channel."""
+        ...
+
+    @property
+    def unit(self) -> str:
+        """Physical unit of the stored samples (e.g. "uV"); makes the bundle self-describing."""
         ...
 
     def rate_hz(self) -> float:

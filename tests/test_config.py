@@ -62,6 +62,39 @@ def test_one_positional_raises():
         load_config({}, ["in.nwb"])
 
 
+def test_zero_positionals_without_dirs_raises():
+    with pytest.raises(ValueError):
+        load_config({"INPUT_DIR": "/data/input"}, [])
+
+
+def test_input_dir_scan_finds_sole_nwb(tmp_path):
+    nwb = tmp_path / "session.nwb"
+    nwb.write_bytes(b"")
+    (tmp_path / "notes.txt").write_bytes(b"")
+    out = tmp_path / "out"
+    cfg = load_config({"INPUT_DIR": str(tmp_path), "OUTPUT_DIR": str(out)}, [])
+    assert cfg.nwb_path == nwb
+    assert cfg.final_dir == out / "session.zarr"
+
+
+def test_input_dir_with_no_nwb_raises(tmp_path):
+    with pytest.raises(ValueError):
+        load_config(
+            {"INPUT_DIR": str(tmp_path), "OUTPUT_DIR": str(tmp_path / "out")},
+            [],
+        )
+
+
+def test_input_dir_with_multiple_nwb_raises(tmp_path):
+    (tmp_path / "a.nwb").write_bytes(b"")
+    (tmp_path / "b.nwb").write_bytes(b"")
+    with pytest.raises(ValueError):
+        load_config(
+            {"INPUT_DIR": str(tmp_path), "OUTPUT_DIR": str(tmp_path / "out")},
+            [],
+        )
+
+
 def test_non_integer_setting_raises():
     with pytest.raises(ValueError):
         load_config(

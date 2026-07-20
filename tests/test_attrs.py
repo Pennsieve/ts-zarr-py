@@ -14,12 +14,16 @@ def test_root_attrs_returns_empty():
 
 @pytest.mark.parametrize("kind", ["continuous", "unit"])
 def test_channel_group_attrs(kind):
-    attrs = channel_group_attrs("N:channel:abc", 32000.0, 1000, kind)
+    attrs = channel_group_attrs(
+        "N:channel:abc", 32000.0, 1000, kind, "channel one", "uV"
+    )
     assert attrs == {
         "id": "N:channel:abc",
         "rate_hz": 32000.0,
         "start_us": 1000,
         "kind": kind,
+        "name": "channel one",
+        "unit": "uV",
     }
 
 

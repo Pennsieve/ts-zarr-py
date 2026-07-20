@@ -198,7 +198,7 @@ def test_write_unit_channel_creates_subgroup_with_attrs(tmp_path, unit_source):
     write_unit_channel(parent, 2, src, opts=WriteOpts())
     grp = open_group(tmp_path / "bundle")["2"]
     assert dict(grp.attrs) == channel_group_attrs(
-        "N:unit:abc", 32000.0, 9, "unit"
+        "N:unit:abc", 32000.0, 9, "unit", src.name, src.unit
     )
 
 

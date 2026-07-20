@@ -132,7 +132,12 @@ def write_continuous_channel(
     level writes only level 0.
     """
     attributes = channel_group_attrs(
-        source.id, source.rate_hz(), source.start_us(), "continuous"
+        source.id,
+        source.rate_hz(),
+        source.start_us(),
+        "continuous",
+        source.name,
+        source.unit,
     )
     group = create_group_with_attrs(parent, str(index), attributes)
     previous = None

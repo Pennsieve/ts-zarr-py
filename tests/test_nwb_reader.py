@@ -2,7 +2,9 @@ from datetime import UTC, datetime
 
 import numpy as np
 import pytest
+from hdmf.common import DynamicTableRegion
 from pynwb.misc import Units
+from pynwb.testing.mock.device import mock_Device
 from pynwb.testing.mock.ecephys import mock_ElectricalSeries
 from pynwb.testing.mock.file import mock_NWBFile
 
@@ -13,6 +15,36 @@ from processor.nwb_reader import (
 )
 
 STARTED = datetime(2021, 6, 1, 12, 0, tzinfo=UTC)
+
+
+def _series_with_electrode_columns(extra_columns, n=3):
+    """Build an ElectricalSeries whose electrodes table carries extra columns.
+
+    extra_columns maps a column name to its per-electrode values; the returned
+    series has n channels wired to those n electrodes in order.
+    """
+    nwb = mock_NWBFile()
+    device = mock_Device(nwbfile=nwb)
+    group = nwb.create_electrode_group(
+        name="grp", description="d", location="loc", device=device
+    )
+    for column in extra_columns:
+        nwb.add_electrode_column(name=column, description=column)
+    for i in range(n):
+        nwb.add_electrode(
+            group=group,
+            location="loc",
+            **{col: values[i] for col, values in extra_columns.items()},
+        )
+    region = DynamicTableRegion(
+        name="electrodes",
+        data=list(range(n)),
+        description="r",
+        table=nwb.electrodes,
+    )
+    return mock_ElectricalSeries(
+        nwbfile=nwb, data=np.zeros((4, n)), electrodes=region
+    )
 
 
 def _make_units(unit_specs, *, name="my_units"):
@@ -77,10 +109,13 @@ def test_id_is_a_string(electrical_series):
 
 
 def test_read_samples_returns_the_channel_column(electrical_series):
-    # The mock's scaling is identity (conversion 1, offset 0).
+    # The mock's affine scaling is identity (conversion 1, offset 0), so the
+    # only factor is the volts to microvolts conversion (1e6).
     es = electrical_series()
     src = NwbContinuousSource(es, 2, STARTED)
-    expected = np.asarray(es.data[1:5, 2], dtype=np.float32)
+    expected = (np.asarray(es.data[1:5, 2], dtype=np.float64) * 1e6).astype(
+        np.float32
+    )
     assert np.array_equal(src.read_samples(1, 5), expected)
 
 
@@ -106,8 +141,78 @@ def test_read_samples_applies_conversion_and_offset():
     data = np.arange(20, dtype=np.float64).reshape(4, 5)
     es = mock_ElectricalSeries(data=data, conversion=2.0, offset=10.0)
     src = NwbContinuousSource(es, 2, STARTED)
-    expected = (data[0:4, 2] * 2.0 + 10.0).astype(np.float32)
+    expected = ((data[0:4, 2] * 2.0 + 10.0) * 1e6).astype(np.float32)
     assert np.array_equal(src.read_samples(0, 4), expected)
+
+
+def test_read_samples_applies_channel_conversion():
+    data = np.arange(20, dtype=np.float64).reshape(4, 5)
+    channel_conversion = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    es = mock_ElectricalSeries(
+        data=data, conversion=2.0, channel_conversion=channel_conversion
+    )
+    src = NwbContinuousSource(es, 2, STARTED)
+    expected = ((data[0:4, 2] * 2.0 * 3.0) * 1e6).astype(np.float32)
+    assert np.array_equal(src.read_samples(0, 4), expected)
+
+
+def test_read_samples_without_channel_conversion_skips_it():
+    data = np.arange(20, dtype=np.float64).reshape(4, 5)
+    es = mock_ElectricalSeries(data=data, conversion=2.0)
+    assert es.channel_conversion is None
+    src = NwbContinuousSource(es, 2, STARTED)
+    expected = ((data[0:4, 2] * 2.0) * 1e6).astype(np.float32)
+    assert np.array_equal(src.read_samples(0, 4), expected)
+
+
+def test_read_samples_normalizes_millivolts_to_microvolts():
+    data = np.arange(20, dtype=np.float64).reshape(4, 5)
+    es = mock_ElectricalSeries(data=data)
+    es.fields["unit"] = "millivolts"
+    src = NwbContinuousSource(es, 2, STARTED)
+    expected = (data[0:4, 2] * 1e3).astype(np.float32)
+    assert np.array_equal(src.read_samples(0, 4), expected)
+
+
+def test_read_samples_raises_on_unknown_unit():
+    data = np.arange(20, dtype=np.float64).reshape(4, 5)
+    es = mock_ElectricalSeries(data=data)
+    es.fields["unit"] = "furlongs"
+    src = NwbContinuousSource(es, 2, STARTED)
+    with pytest.raises(ValueError, match="furlongs"):
+        src.read_samples(0, 4)
+
+
+def test_continuous_unit_is_microvolts(electrical_series):
+    es = electrical_series()
+    src = NwbContinuousSource(es, 2, STARTED)
+    assert src.unit == "uV"
+
+
+def test_continuous_name_from_channel_name_column():
+    es = _series_with_electrode_columns({"channel_name": ["a", "b", "c"]})
+    src = NwbContinuousSource(es, 1, STARTED)
+    assert src.name == "b"
+
+
+def test_continuous_name_falls_back_to_label_column():
+    es = _series_with_electrode_columns({"label": ["x", "y", "z"]})
+    src = NwbContinuousSource(es, 2, STARTED)
+    assert src.name == "z"
+
+
+def test_continuous_name_prefers_channel_name_over_label():
+    es = _series_with_electrode_columns(
+        {"channel_name": ["a", "b", "c"], "label": ["x", "y", "z"]}
+    )
+    src = NwbContinuousSource(es, 0, STARTED)
+    assert src.name == "a"
+
+
+def test_continuous_name_falls_back_to_id_when_no_columns(electrical_series):
+    es = electrical_series()
+    src = NwbContinuousSource(es, 2, STARTED)
+    assert src.name == src.id
 
 
 def test_unit_num_events_sums_all_units_spikes():
@@ -135,6 +240,18 @@ def test_unit_id_is_the_table_name():
         _make_units(_TWO_UNITS, name="probeA"), 30000.0, STARTED
     )
     assert src.id == "probeA"
+
+
+def test_unit_name_is_the_table_name():
+    src = NwbUnitSource(
+        _make_units(_TWO_UNITS, name="probeA"), 30000.0, STARTED
+    )
+    assert src.name == "probeA"
+
+
+def test_unit_unit_is_microvolts():
+    src = NwbUnitSource(_make_units(_TWO_UNITS), 30000.0, STARTED)
+    assert src.unit == "uV"
 
 
 def test_unit_read_events_is_ascending_absolute_microseconds():
@@ -195,10 +312,10 @@ def test_build_yields_one_continuous_source_per_channel():
     continuous, units = build_sources_from_nwb(nwb)
     assert len(continuous) == 5
     assert units == []
-    # Channel index 2 reads its own column.
+    # Channel index 2 reads its own column, normalized volts to microvolts.
     assert np.array_equal(
         continuous[2].read_samples(0, 10),
-        data[:, 2].astype(np.float32),
+        (data[:, 2] * 1e6).astype(np.float32),
     )
 
 
@@ -229,5 +346,57 @@ def test_build_with_no_units_yields_no_unit_sources():
 def test_build_units_without_series_rate_raises():
     nwb = mock_NWBFile()
     nwb.units = _make_units(_TWO_UNITS, name="units")
+    with pytest.raises(ValueError):
+        build_sources_from_nwb(nwb)
+
+
+def _add_units_to_module(nwb, module_name, units_table):
+    """Attach a Units table to a (created if needed) processing module."""
+    if module_name in nwb.processing:
+        module = nwb.processing[module_name]
+    else:
+        module = nwb.create_processing_module(name=module_name, description="d")
+    module.add(units_table)
+
+
+def test_build_discovers_units_in_a_processing_module():
+    nwb = mock_NWBFile()
+    mock_ElectricalSeries(nwbfile=nwb, rate=30000.0)
+    _add_units_to_module(nwb, "ecephys", _make_units(_TWO_UNITS, name="sorted"))
+    _, units = build_sources_from_nwb(nwb)
+    assert len(units) == 1
+    assert units[0].id == "sorted"
+
+
+def test_build_orders_root_units_before_module_units():
+    nwb = mock_NWBFile()
+    mock_ElectricalSeries(nwbfile=nwb, rate=30000.0)
+    nwb.units = _make_units(_TWO_UNITS, name="units")
+    _add_units_to_module(nwb, "ecephys", _make_units(_TWO_UNITS, name="module"))
+    _, units = build_sources_from_nwb(nwb)
+    assert [u.id for u in units] == ["units", "module"]
+
+
+def test_build_orders_modules_by_name():
+    nwb = mock_NWBFile()
+    mock_ElectricalSeries(nwbfile=nwb, rate=30000.0)
+    _add_units_to_module(nwb, "zebra", _make_units(_TWO_UNITS, name="z_units"))
+    _add_units_to_module(nwb, "alpha", _make_units(_TWO_UNITS, name="a_units"))
+    _, units = build_sources_from_nwb(nwb)
+    assert [u.id for u in units] == ["a_units", "z_units"]
+
+
+def test_build_orders_containers_within_a_module_by_name():
+    nwb = mock_NWBFile()
+    mock_ElectricalSeries(nwbfile=nwb, rate=30000.0)
+    _add_units_to_module(nwb, "ecephys", _make_units(_TWO_UNITS, name="second"))
+    _add_units_to_module(nwb, "ecephys", _make_units(_TWO_UNITS, name="first"))
+    _, units = build_sources_from_nwb(nwb)
+    assert [u.id for u in units] == ["first", "second"]
+
+
+def test_build_module_units_without_series_rate_raises():
+    nwb = mock_NWBFile()
+    _add_units_to_module(nwb, "ecephys", _make_units(_TWO_UNITS, name="sorted"))
     with pytest.raises(ValueError):
         build_sources_from_nwb(nwb)
