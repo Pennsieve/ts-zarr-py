@@ -1,15 +1,15 @@
 FROM python:3.12
 
-WORKDIR /processor
+WORKDIR /app
 
 RUN apt clean && apt-get update && apt-get -y install libhdf5-dev
 
-COPY processor/requirements.txt /processor/requirements.txt
+COPY processor/requirements.txt /app/processor/requirements.txt
 
-RUN pip install -r /processor/requirements.txt
+RUN pip install -r /app/processor/requirements.txt
 
-COPY processor/ /processor
+COPY processor/ /app/processor
 
-ENV PYTHONPATH="/"
+ENV PYTHONPATH="/app"
 
 CMD ["python3.12", "-m", "processor.main"]
