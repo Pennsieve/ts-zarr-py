@@ -4,11 +4,11 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
-from processor.protocols import ContinuousChannelSource, UnitChannelSource
-from processor.types import WriteOpts
-from processor.write_continuous import write_continuous_channel
-from processor.write_unit import write_unit_channel
-from processor.zarr_io import ZarrGroup, consolidate, open_group
+from ts_zarr.protocols import ContinuousChannelSource, UnitChannelSource
+from ts_zarr.types import WriteOpts
+from ts_zarr.write_continuous import write_continuous_channel
+from ts_zarr.write_unit import write_unit_channel
+from ts_zarr.zarr_io import ZarrGroup, consolidate, open_group
 
 
 def assign_indices(

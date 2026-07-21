@@ -6,20 +6,20 @@ from typing import cast
 import numpy as np
 import numpy.typing as npt
 
-from processor.attrs import channel_group_attrs, level_array_attrs
-from processor.constants import FLOAT32_BYTES
-from processor.fold import fold_block
-from processor.planning import level0_period_us, plan_levels
-from processor.protocols import ContinuousChannelSource
-from processor.sizing import chunk_and_shard
-from processor.streaming import (
+from ts_zarr.attrs import channel_group_attrs, level_array_attrs
+from ts_zarr.constants import FLOAT32_BYTES
+from ts_zarr.fold import fold_block
+from ts_zarr.planning import level0_period_us, plan_levels
+from ts_zarr.protocols import ContinuousChannelSource
+from ts_zarr.sizing import chunk_and_shard
+from ts_zarr.streaming import (
     BlockReadableArray,
     _rebuffer_and_fold,
     iter_array_blocks,
     iter_raw_blocks,
 )
-from processor.types import ChunkShard, LevelPlan, WriteOpts
-from processor.zarr_io import (
+from ts_zarr.types import ChunkShard, LevelPlan, WriteOpts
+from ts_zarr.zarr_io import (
     ZarrArray,
     ZarrGroup,
     create_array,

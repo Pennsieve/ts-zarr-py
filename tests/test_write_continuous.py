@@ -4,16 +4,16 @@ import numpy as np
 import pytest
 from zarr import Array
 
-from processor.attrs import channel_group_attrs
-from processor.fold import fold_block
-from processor.planning import plan_levels
-from processor.types import ChunkShard, LevelPlan, WriteOpts
-from processor.write_continuous import (
+from ts_zarr.attrs import channel_group_attrs
+from ts_zarr.fold import fold_block
+from ts_zarr.planning import plan_levels
+from ts_zarr.types import ChunkShard, LevelPlan, WriteOpts
+from ts_zarr.write_continuous import (
     write_continuous_channel,
     write_level0,
     write_level_from_previous,
 )
-from processor.zarr_io import create_array, open_group, write_region
+from ts_zarr.zarr_io import create_array, open_group, write_region
 
 
 def _plan(n, period_us=31.25):

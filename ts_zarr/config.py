@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from processor.types import WriteOpts
+from ts_zarr.types import WriteOpts
 
 
 @dataclass(frozen=True, slots=True)

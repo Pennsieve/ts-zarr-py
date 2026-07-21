@@ -5,13 +5,13 @@ from collections.abc import Callable
 import numpy as np
 import numpy.typing as npt
 
-from processor.attrs import channel_group_attrs, waveform_array_attrs
-from processor.constants import FLOAT32_BYTES, INT64_BYTES, UINT8_BYTES
-from processor.planning import level0_period_us
-from processor.protocols import UnitChannelSource
-from processor.sizing import chunk_and_shard
-from processor.types import ChunkShard, WriteOpts
-from processor.zarr_io import (
+from ts_zarr.attrs import channel_group_attrs, waveform_array_attrs
+from ts_zarr.constants import FLOAT32_BYTES, INT64_BYTES, UINT8_BYTES
+from ts_zarr.planning import level0_period_us
+from ts_zarr.protocols import UnitChannelSource
+from ts_zarr.sizing import chunk_and_shard
+from ts_zarr.types import ChunkShard, WriteOpts
+from ts_zarr.zarr_io import (
     ZarrArray,
     ZarrGroup,
     create_array,

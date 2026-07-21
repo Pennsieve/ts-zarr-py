@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from processor.fold import fold_pair_block, fold_raw_block
-from processor.streaming import (
+from ts_zarr.fold import fold_pair_block, fold_raw_block
+from ts_zarr.streaming import (
     _rebuffer_and_fold,
     iter_array_blocks,
     iter_level0_to_level1,

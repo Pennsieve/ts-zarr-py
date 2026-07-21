@@ -1,11 +1,11 @@
 """Pyramid level planning: level counts, shapes, and time resolutions."""
 
-from processor.constants import (
+from ts_zarr.constants import (
     DECIMATION_FACTOR,
     ENVELOPE_PAIR_SIZE,
     MICROSECONDS_PER_SECOND,
 )
-from processor.types import LevelPlan
+from ts_zarr.types import LevelPlan
 
 
 def level_count(

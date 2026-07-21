@@ -1,16 +1,16 @@
 import numpy as np
 import pytest
 
-from processor.attrs import channel_group_attrs
-from processor.planning import level0_period_us
-from processor.types import ChunkShard, WriteOpts
-from processor.write_unit import (
+from ts_zarr.attrs import channel_group_attrs
+from ts_zarr.planning import level0_period_us
+from ts_zarr.types import ChunkShard, WriteOpts
+from ts_zarr.write_unit import (
     write_events_array,
     write_unit_channel,
     write_units_array,
     write_waveforms_array,
 )
-from processor.zarr_io import open_group
+from ts_zarr.zarr_io import open_group
 
 
 def _sizing():

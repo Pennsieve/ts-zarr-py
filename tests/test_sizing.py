@@ -1,12 +1,12 @@
 import pytest
 
-from processor.constants import INNER_CHUNK_SAMPLES
-from processor.sizing import (
+from ts_zarr.constants import INNER_CHUNK_SAMPLES
+from ts_zarr.sizing import (
     chunk_and_shard,
     chunk_shape_for_level,
     shard_shape_for_level,
 )
-from processor.types import ChunkShard
+from ts_zarr.types import ChunkShard
 
 
 @pytest.mark.parametrize(

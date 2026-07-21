@@ -1,6 +1,6 @@
 import pytest
 
-from processor.planning import (
+from ts_zarr.planning import (
     level_count,
     level_num_bins,
     level_period_us,

@@ -1,6 +1,6 @@
 """Attribute-dict builders for the bundle (the only custom format surface)."""
 
-from processor.types import ChannelKind
+from ts_zarr.types import ChannelKind
 
 
 def root_attrs() -> dict[str, object]:

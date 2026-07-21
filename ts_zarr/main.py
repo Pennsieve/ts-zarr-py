@@ -7,9 +7,9 @@ from collections.abc import Sequence
 
 from pynwb import NWBHDF5IO
 
-from processor.bundle import write_bundle
-from processor.config import load_config
-from processor.nwb_reader import build_sources_from_nwb
+from ts_zarr.bundle import write_bundle
+from ts_zarr.config import load_config
+from ts_zarr.nwb_reader import build_sources_from_nwb
 
 logger = logging.getLogger(__name__)
 

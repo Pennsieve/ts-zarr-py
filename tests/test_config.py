@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from processor.config import Config, load_config
-from processor.types import WriteOpts
+from ts_zarr.config import Config, load_config
+from ts_zarr.types import WriteOpts
 
 
 def test_two_positionals_populate_paths():

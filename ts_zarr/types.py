@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from processor.constants import INNER_CHUNK_SAMPLES, TARGET_SHARD_BYTES
+from ts_zarr.constants import INNER_CHUNK_SAMPLES, TARGET_SHARD_BYTES
 
 type ChannelKind = Literal["continuous", "unit"]
 
