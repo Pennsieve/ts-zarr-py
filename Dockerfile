@@ -4,12 +4,12 @@ WORKDIR /app
 
 RUN apt clean && apt-get update && apt-get -y install libhdf5-dev
 
-COPY processor/requirements.txt /app/processor/requirements.txt
+COPY ts_zarr/requirements.txt /app/ts_zarr/requirements.txt
 
-RUN pip install -r /app/processor/requirements.txt
+RUN pip install -r /app/ts_zarr/requirements.txt
 
-COPY processor/ /app/processor
+COPY ts_zarr/ /app/ts_zarr
 
 ENV PYTHONPATH="/app"
 
-CMD ["python3.12", "-m", "processor.main"]
+CMD ["python3.12", "-m", "ts_zarr.main"]
