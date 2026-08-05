@@ -25,7 +25,7 @@ def _sizing():
 
 
 def _make_prev(group, data):
-    """Create and fill a "prev" array on disk matching data's shape/rank."""
+    """Create and fill a "prev" array on disk matching data's shape."""
     grid = (max(1, data.shape[0]), *data.shape[1:])
     arr = create_array(group, "prev", data.shape, np.float32, grid, grid, {}, 5)
     if data.shape[0]:
@@ -34,7 +34,7 @@ def _make_prev(group, data):
 
 
 def _fold_plan(level, n_prev_rows, chunk0):
-    """LevelPlan + ChunkShard for folding n_prev_rows down by 4 into level."""
+    """Return the plan and sizing for folding n_prev_rows by 4 into level."""
     bins = math.ceil(n_prev_rows / 4)
     plan = LevelPlan(level=level, shape=(bins, 2), period_us=125.0)
     sizing = ChunkShard(chunk_shape=(chunk0, 2), shard_shape=(chunk0, 2))

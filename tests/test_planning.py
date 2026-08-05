@@ -36,8 +36,8 @@ def test_level_count_custom_min_bins():
 
 
 def test_level_count_threshold_off_by_one():
-    # At min_bins=100: level 1 holds N//4 bins. N=400 gives exactly 100 (kept),
-    # N=399 gives 99 (< min_bins, so level 1 is dropped) - the boundary.
+    # The gate counts complete bins: 399 samples make 99 and drop level 1, even
+    # though level_num_bins keeps the partial bin and reports 100.
     assert level_count(399, min_bins=100) == 1
     assert level_count(400, min_bins=100) == 2
 
@@ -64,8 +64,8 @@ def test_level_num_bins(num_samples, level, expected):
 
 
 def test_level_num_bins_exact_for_huge_num_samples():
-    # 2**53 + 1 has no exact float64 representation, so a float-based ceil would
-    # round it down to 2**53 and return one bin too few. Integer arithmetic stays exact.
+    # 2**53 + 1 has no exact float64 representation. A float-based ceil would
+    # return one bin too few.
     assert level_num_bins(2**53 + 1, 1) == 2**51 + 1
 
 

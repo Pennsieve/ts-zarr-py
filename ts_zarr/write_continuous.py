@@ -1,4 +1,9 @@
-"""Compose streaming and zarr I/O to write one continuous channel's levels."""
+"""Compose streaming and zarr I/O to write one continuous channel's levels.
+
+Each level writer shapes its array from the plan, takes its chunk and shard
+shapes from sizing, then streams blocks in. An empty input creates the array
+and writes nothing.
+"""
 
 from collections.abc import Iterable
 from typing import cast
@@ -47,12 +52,9 @@ def write_level0(
 ) -> ZarrArray:
     """Create the level-0 raw array under group and stream the source into it.
 
-    Creates the array named "0" with shape plan.shape, float32 dtype, the chunk
-    and shard shapes from sizing, and the level period_us as its sole attribute,
-    then writes the source's raw samples in chunk-sized blocks at their running
-    axis-0 offset. Returns the created array. An empty source (no samples)
-    creates the array and writes nothing. Raises ValueError if plan does not
-    describe level 0 (raw).
+    The array is named "0", holds float32, and carries the level period_us as
+    its sole attribute. The source's raw samples are read in chunk-sized
+    blocks. Raises ValueError if plan does not describe level 0 (raw).
     """
     if not plan.is_raw:
         raise ValueError("plan level must be raw")
@@ -80,14 +82,10 @@ def write_level_from_previous(
 ) -> ZarrArray:
     """Create the level named plan.level by folding the previous level into it.
 
-    Creates the array named str(plan.level) with shape plan.shape, float32
-    dtype, the chunk and shard shapes from sizing, and the level period_us as
-    its sole attribute. Reads prev in chunk-sized axis-0 blocks and folds them
-    across block boundaries into one (min, max) row per 4 input rows (min of
-    mins, max of maxes when prev is itself an envelope level), writing each
-    folded block at its running axis-0 offset. Returns the created array. An
-    empty prev (no rows) creates the array and writes nothing. Raises ValueError
-    if plan describes level 0; this path builds only envelope levels (>= 1).
+    The array is named str(plan.level), holds float32, and carries the level
+    period_us as its sole attribute. prev is read in chunk-sized axis-0 blocks
+    and folded across block boundaries by fold_block. Raises ValueError if plan
+    describes level 0.
     """
     if plan.is_raw:
         raise ValueError("level must not be raw")
@@ -125,11 +123,10 @@ def write_continuous_channel(
     """Write one continuous channel as the subgroup named str(index).
 
     Creates the channel group under parent carrying its continuous-kind
-    attributes (id, rate, start), plans the pyramid from the source's sample
-    count and rate, writes level 0 from the source, then folds each coarser
-    level from the array written just below it. Every level array is sized and
-    compressed per opts. Returns nothing. A channel that plans to a single
-    level writes only level 0.
+    attributes, then writes level 0 from the source and folds each coarser
+    level from the one written below it. The pyramid is planned from the
+    source's sample count and rate; every level array is sized and compressed
+    per opts.
     """
     attributes = channel_group_attrs(
         source.id,

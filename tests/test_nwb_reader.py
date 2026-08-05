@@ -20,7 +20,7 @@ STARTED = datetime(2021, 6, 1, 12, 0, tzinfo=UTC)
 def _series_with_electrode_columns(extra_columns, n=3):
     """Build an ElectricalSeries whose electrodes table carries extra columns.
 
-    extra_columns maps a column name to its per-electrode values; the returned
+    extra_columns maps a column name to its per-electrode values. The returned
     series has n channels wired to those n electrodes in order.
     """
     nwb = mock_NWBFile()
@@ -109,8 +109,7 @@ def test_id_is_a_string(electrical_series):
 
 
 def test_read_samples_returns_the_channel_column(electrical_series):
-    # The mock's affine scaling is identity (conversion 1, offset 0), so the
-    # only factor is the volts to microvolts conversion (1e6).
+    # The mock's affine scaling is identity; 1e6 converts volts to microvolts.
     es = electrical_series()
     src = NwbContinuousSource(es, 2, STARTED)
     expected = (np.asarray(es.data[1:5, 2], dtype=np.float64) * 1e6).astype(
@@ -312,7 +311,6 @@ def test_build_yields_one_continuous_source_per_channel():
     continuous, units = build_sources_from_nwb(nwb)
     assert len(continuous) == 5
     assert units == []
-    # Channel index 2 reads its own column, normalized volts to microvolts.
     assert np.array_equal(
         continuous[2].read_samples(0, 10),
         (data[:, 2] * 1e6).astype(np.float32),
@@ -351,7 +349,7 @@ def test_build_units_without_series_rate_raises():
 
 
 def _add_units_to_module(nwb, module_name, units_table):
-    """Attach a Units table to a (created if needed) processing module."""
+    """Attach a Units table to a processing module, creating the module if absent."""
     if module_name in nwb.processing:
         module = nwb.processing[module_name]
     else:

@@ -81,9 +81,7 @@ def test_rebuffer_and_fold_carry_stays_below_group(seed):
     out = list(
         _rebuffer_and_fold(_split(arr, sizes), recording_fold, group=group)
     )
-    # Aligned folding: every call but the final flush gets a full multiple of
-    # group; the carry held across each boundary is therefore below group, so no
-    # fold ever sees more than one block plus that sub-group carry.
+    # Every fold but the final flush sees a whole multiple of group.
     for length in seen_lengths[:-1]:
         assert length % group == 0
     assert max(seen_lengths) <= max_block + group - 1
@@ -94,8 +92,7 @@ def test_rebuffer_and_fold_carry_stays_below_group(seed):
 
 
 def test_rebuffer_and_fold_final_carry_is_group_minus_one():
-    # Split 7 rows as [4, 3] with group=4: the first block folds whole, leaving
-    # the trailing 3 (= group - 1) to be carried and flushed in the final fold.
+    # Splitting [4, 3] with group=4 carries group - 1 rows into the final flush.
     arr = np.arange(7, dtype=np.float32)
     group = 4
     seen_lengths = []

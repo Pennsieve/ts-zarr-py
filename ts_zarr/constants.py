@@ -37,4 +37,4 @@ UNIT_TO_UV: Final = {
     "microvolts": 1.0,
     "uv": 1.0,
 }
-"""unit conversion to microvolts."""
+"""Conversion factors from a volts-family unit name to microvolts."""

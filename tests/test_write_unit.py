@@ -14,7 +14,7 @@ from ts_zarr.zarr_io import open_group
 
 
 def _sizing():
-    # Small chunk forces multiple blocks so cross-boundary cases are exercised.
+    # A chunk of 4 forces multiple blocks.
     return ChunkShard(chunk_shape=(4,), shard_shape=(8,))
 
 
@@ -119,7 +119,7 @@ def test_write_units_array_empty_source(tmp_path, unit_source):
 
 
 def _sizing_2d(ppe):
-    # Row-chunked on axis 0; the points-per-event axis is never chunked.
+    # The points-per-event axis is never chunked.
     return ChunkShard(chunk_shape=(4, ppe), shard_shape=(8, ppe))
 
 

@@ -40,9 +40,9 @@ def test_chunk_shape_for_level_default_inner_len_rank2():
             4,
             16 * 2**20,
             (4194304,),
-        ),  # byte budget bites
-        ((256,), (100_000,), 4, 16 * 2**20, (100096,)),  # budget exceeds array
-        ((1024,), (100_000,), 4, 1024, (1024,)),  # chunk > budget -> 1 chunk
+        ),  # target caps the shard
+        ((256,), (100_000,), 4, 16 * 2**20, (100096,)),  # target exceeds array
+        ((1024,), (100_000,), 4, 1024, (1024,)),  # chunk > target -> one chunk
         (
             (131072, 2),
             (100_000_000, 2),

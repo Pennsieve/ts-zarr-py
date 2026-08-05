@@ -1,4 +1,9 @@
-"""Compose streaming and zarr I/O to write one unit (spike) channel's arrays."""
+"""Compose streaming and zarr I/O to write one unit (spike) channel's arrays.
+
+Each array writer takes its chunk and shard shapes from sizing and streams the
+source's rows in. An empty source (no events) creates the array and writes
+nothing.
+"""
 
 from collections.abc import Callable
 
@@ -29,9 +34,9 @@ def _write_source_blocks[T: np.generic](
 ) -> None:
     """Stream a source's rows into array in chunk-sized axis-0 blocks.
 
-    Reads each [begin, begin + block_len) window via reader and writes it at the
-    running axis-0 offset; on_block, when given, inspects each block before its
-    write (used to validate ordering). Writes nothing when n is zero.
+    Each [begin, begin + block_len) window is read through reader and written
+    at the running axis-0 offset. on_block, when given, inspects a block before
+    its write.
     """
     start = 0
     for begin in range(0, n, block_len):
@@ -50,12 +55,9 @@ def write_events_array(
 ) -> ZarrArray:
     """Create the events array under group and stream the source's timestamps in.
 
-    Creates a rank-1 int64 array named "events" of absolute-microsecond event
-    timestamps, with the chunk and shard shapes from sizing and no custom
-    attributes, then writes the source's events in chunk-sized blocks at their
-    running axis-0 offset. Returns the created array. An empty source (no
-    events) creates the array and writes nothing. Raises ValueError if the
-    timestamps are not non-decreasing, including across a block boundary.
+    A rank-1 int64 array named "events" of absolute-microsecond timestamps,
+    with no custom attributes. Raises ValueError if the timestamps are not
+    non-decreasing, including across a block boundary.
     """
     array = create_array(
         group=group,
@@ -95,11 +97,8 @@ def write_units_array(
 ) -> ZarrArray:
     """Create the units array under group and stream the source's cluster ids in.
 
-    Creates a rank-1 uint8 array named "units" of per-event cluster ids, with
-    the chunk and shard shapes from sizing and no custom attributes, then writes
-    the source's classifications in chunk-sized blocks at their running axis-0
-    offset. Row k classifies the event at events[k]. Returns the created array.
-    An empty source (no events) creates the array and writes nothing.
+    A rank-1 uint8 array named "units", with no custom attributes. Row k
+    classifies the event at events[k].
     """
     array = create_array(
         group=group,
@@ -130,13 +129,10 @@ def write_waveforms_array(
 ) -> ZarrArray:
     """Create the waveforms array under group and stream the source's waveforms in.
 
-    Creates a rank-2 float32 array named "waveforms" of shape (n_events,
-    points_per_event), with the chunk and shard shapes from sizing and period_us
-    as its sole custom attribute (the spacing in microseconds between adjacent
-    waveform samples), then writes the source's waveforms in chunk-sized row
-    blocks at their running axis-0 offset. Row k is the waveform for the event at
-    events[k]. Returns the created array. An empty source (no events) creates the
-    array and writes nothing.
+    A rank-2 float32 array named "waveforms" of shape (n_events,
+    points_per_event), carrying period_us as its sole attribute: the
+    microseconds between adjacent waveform samples. Row k is the waveform for
+    the event at events[k].
     """
     array = create_array(
         group=group,
@@ -167,12 +163,11 @@ def write_unit_channel(
 ) -> None:
     """Write one unit channel as the subgroup named str(index).
 
-    Creates the channel group under parent carrying its unit-kind attributes
-    (id, rate, start), then writes the events, units, and waveforms arrays from
-    the source, each sized and compressed per opts. The waveform period is
-    derived from the source's sample rate. Returns nothing. Trusts num_events as
-    authoritative for all three arrays; cross-array length validation is the
-    NWB adapter's responsibility.
+    Creates the channel group under parent carrying its unit-kind attributes,
+    then writes the events, units, and waveforms arrays from the source, each
+    sized and compressed per opts. The waveform period comes from the source's
+    sample rate. num_events sizes all three arrays, so the source must keep
+    events, units, and waveforms the same length.
     """
     attributes = channel_group_attrs(
         source.id,

@@ -27,10 +27,8 @@ class NwbContinuousSource:
     ) -> None:
         """Bind one channel of an ElectricalSeries as a continuous source.
 
-        electrical_series holds the multichannel recording; channel_index selects
-        the column this source exposes; session_start_time is the recording's
-        wall-clock origin, combined with the series' own start offset to place
-        sample 0 in absolute microseconds.
+        channel_index selects the column this source exposes.
+        session_start_time is the recording's wall-clock origin.
         """
         self._series = electrical_series
         self._channel_index = channel_index
@@ -38,22 +36,14 @@ class NwbContinuousSource:
 
     @property
     def id(self) -> str:
-        """Opaque upstream identifier for this channel.
-
-        Derived from the selected electrode so the reader can join the channel
-        to its display metadata.
-        """
+        """The selected electrode's table id."""
         electrodes = self._series.electrodes
         row_index = electrodes.data[self._channel_index]
         return str(electrodes.table.id[row_index])
 
     @property
     def name(self) -> str:
-        """Human-readable display label for this channel.
-
-        Taken from the selected electrode's channel_name column, falling back to
-        its label column, then to the opaque id when the table carries neither.
-        """
+        """The electrode's channel_name column, then its label, then the id."""
         electrodes = self._series.electrodes
         row_index = electrodes.data[self._channel_index]
         table = electrodes.table
@@ -64,26 +54,18 @@ class NwbContinuousSource:
 
     @property
     def unit(self) -> str:
-        """Physical unit of the samples this source yields.
-
-        Always microvolts ("uV"): read_samples normalizes every series to
-        microvolts, so the stored unit is fixed regardless of the source's own.
-        """
+        """Always "uV"; read_samples normalizes every series to microvolts."""
         return "uV"
 
     def rate_hz(self) -> float:
-        """Return the channel's sample rate in hertz.
-
-        Taken from the ElectricalSeries' own rate, or inferred from its explicit
-        timestamps when no rate is set.
-        """
+        """Return the ElectricalSeries' sample rate in hertz."""
         return float(self._series.rate)
 
     def start_us(self) -> int:
         """Return the wall-clock microseconds of sample index 0.
 
-        The session start combined with the series' own start offset, rounded to
-        whole microseconds.
+        The session start plus the series' own start offset, rounded to whole
+        microseconds.
         """
         start_s: float = (
             self._session_start_time.timestamp() + self._series.starting_time
@@ -91,23 +73,15 @@ class NwbContinuousSource:
         return round(start_s * MICROSECONDS_PER_SECOND)
 
     def num_samples(self) -> int:
-        """Return the total number of raw samples in the channel.
-
-        The length of the series' time axis (axis 0 of its data), shared by
-        every channel.
-        """
+        """Return the length of the series' time axis, shared by every channel."""
         return int(self._series.data.shape[0])
 
     def read_samples(self, start: int, stop: int) -> npt.NDArray[np.float32]:
         """Return the half-open [start, stop) sample window as float32 microvolts.
 
-        Reads this channel's column of the ElectricalSeries over the given
-        axis-0 range in one HDF5 read and scales it to microvolts: the series'
-        affine scaling (raw times the conversion, times the per-channel
-        conversion when the series carries one, plus the offset) followed by the
-        volts-family to microvolts factor for the series' unit. Raises ValueError
-        if the series' unit is not a recognized volts family. An empty range
-        (stop <= start) yields a length-0 array.
+        Applies the series' affine scaling, then converts from the series' own
+        unit to microvolts. Raises ValueError if that unit is not a recognized
+        volts family. An empty range (stop <= start) yields a length-0 array.
         """
         column: npt.NDArray[np.float64] = np.asarray(
             self._series.data[start:stop, self._channel_index],
@@ -128,17 +102,11 @@ class NwbContinuousSource:
 class NwbUnitSource:
     """A unit (spike) channel backed by an NWB Units table.
 
-    The NWB Units table is organized per unit: each row is one cluster with a
-    ragged list of spike times and a single waveform_mean template. This adapter
-    flattens it into the per-event streams the bundle stores: all units' spikes
-    merged into one timestamp series sorted ascending, each event tagged with its
-    cluster's dense id, and each event carrying its cluster's mean waveform.
-
-    Cluster ids are assigned densely as 0..k-1 in the table's row order (not the
-    upstream unit ids, which are display metadata fetched separately), so they
-    fit the uint8 units array; a table of more than 256 units is rejected. The
-    waveform sample rate has no standard home in the Units table, so it is passed
-    in explicitly rather than guessed.
+    Flattens the table's per-cluster rows into the per-event streams the
+    bundle stores: all spikes merged into one timestamp series sorted
+    ascending, each event tagged with its cluster's dense uint8 id in table
+    row order (not the upstream unit id) and carrying that cluster's
+    waveform_mean.
     """
 
     def __init__(
@@ -149,11 +117,10 @@ class NwbUnitSource:
     ) -> None:
         """Bind an NWB Units table as a flattened per-event spike source.
 
-        units is the table to wrap; waveform_rate_hz is the sample rate within a
-        waveform (the table carries no rate); session_start_time is the
-        recording's wall-clock origin placing event timestamps in absolute
-        microseconds. Raises ValueError if the table has more than 256 units
-        (cluster ids would not fit uint8).
+        waveform_rate_hz is the sample rate within a waveform; the table
+        carries no rate of its own. session_start_time places event timestamps
+        in absolute microseconds. Raises ValueError if the table holds more
+        than 256 units, past the uint8 cluster-id range.
         """
         unit_count = len(units)
         if unit_count > MAX_UNIT_CLUSTERS:
@@ -193,47 +160,29 @@ class NwbUnitSource:
 
     @property
     def id(self) -> str:
-        """Opaque upstream identifier for this unit channel.
-
-        Derived from the Units table's name so the reader can join the channel
-        to its display metadata.
-        """
+        """The Units table's name."""
         return self._id
 
     @property
     def name(self) -> str:
-        """Human-readable display label for this unit channel.
-
-        The Units table's name, the only human-readable handle a Units table
-        carries.
-        """
+        """The Units table's name, the same value as id."""
         return self._id
 
     @property
     def unit(self) -> str:
-        """Physical unit of the samples this source yields.
+        """Always "uV".
 
-        Reported as microvolts ("uV") for consistency with continuous channels
-        and the bundle's microvolt convention. A Units table's waveform_mean
-        carries no unit metadata, so the waveform amplitudes are passed through
-        unscaled rather than normalized from a guessed source unit.
+        waveform_mean carries no unit metadata, so the amplitudes are stored
+        unscaled.
         """
         return "uV"
 
     def rate_hz(self) -> float:
-        """Return the waveform sample rate in hertz.
-
-        The explicit rate bound at construction; the Units table itself carries
-        no rate.
-        """
+        """Return the waveform sample rate in hertz, as bound at construction."""
         return self._rate_hz
 
     def start_us(self) -> int:
-        """Return the wall-clock microseconds of the recording start.
-
-        The session start rounded to whole microseconds; unit events are stored
-        as absolute timestamps, so no per-event offset is applied beyond this.
-        """
+        """Return the recording start, rounded to whole microseconds."""
         return self._start_us
 
     def num_events(self) -> int:
@@ -241,35 +190,30 @@ class NwbUnitSource:
         return int(self._events.shape[0])
 
     def points_per_event(self) -> int:
-        """Return the number of waveform samples stored per event.
-
-        The width of the units' waveform_mean template, shared by every event.
-        """
+        """Return the width of the waveform_mean template, shared by every event."""
         return int(self._waveforms.shape[1])
 
     def read_events(self, start: int, stop: int) -> npt.NDArray[np.int64]:
         """Return the half-open [start, stop) window of event timestamps.
 
-        Absolute-microsecond int64 timestamps over all units' spikes merged and
-        sorted ascending. An empty range (stop <= start) yields a length-0 array.
+        Absolute-microsecond int64. An empty range (stop <= start) yields a
+        length-0 array.
         """
         return self._events[start:stop]
 
     def read_units(self, start: int, stop: int) -> npt.NDArray[np.uint8]:
         """Return the half-open [start, stop) window of per-event cluster ids.
 
-        uint8 dense cluster ids (0..k-1 in table row order) aligned with the
-        events at the same indices. An empty range yields a length-0 array.
+        Aligned with the events at the same indices. An empty range yields a
+        length-0 array.
         """
         return self._units[start:stop]
 
     def read_waveforms(self, start: int, stop: int) -> npt.NDArray[np.float32]:
         """Return float32 waveforms for events [start, stop).
 
-        Shape (stop - start, points_per_event); row k is the waveform_mean of the
-        cluster that produced event k (every spike of a cluster shares that
-        cluster's mean template). An empty range yields a (0, points_per_event)
-        array.
+        Row k is the waveform_mean of the cluster that produced event k. An
+        empty range yields a (0, points_per_event) array.
         """
         return self._waveforms[start:stop]
 
@@ -277,9 +221,9 @@ class NwbUnitSource:
 def _iter_units_tables(nwbfile: NWBFile) -> Iterator[Units]:
     """Yield every Units table in the file in deterministic discovery order.
 
-    The root Units table first (when present), then the Units containers of
-    each processing module, modules taken in name order and their containers in
-    name order, so the same file always produces the same unit-channel order.
+    The root Units table first when present, then the Units containers of each
+    processing module, modules in name order and their containers in name
+    order.
     """
     if nwbfile.units is not None:
         yield nwbfile.units
@@ -296,17 +240,11 @@ def build_sources_from_nwb(
 ) -> tuple[list[NwbContinuousSource], list[NwbUnitSource]]:
     """Discover the channel sources to write from an open NWB file.
 
-    Returns the continuous sources and the unit sources, in that order. Every
-    ElectricalSeries in the file's acquisition contributes one continuous source
-    per channel column, in series order then channel order. Each Units table
-    contributes one unit source, discovered as the root table then the tables in
-    processing modules (modules by name, containers by name). The recording's
-    session start time places all timestamps in absolute microseconds. Unit
-    waveforms have no rate of their own, so they reuse the sample rate of the
-    first ElectricalSeries. A file with no ElectricalSeries yields no continuous
-    sources; one with no Units table yields no unit sources. Raises ValueError
-    if any Units table is present but no ElectricalSeries supplies a waveform
-    rate.
+    Every ElectricalSeries in the file's acquisition contributes one continuous
+    source per channel column, in series order then channel order. Each Units
+    table contributes one unit source, in _iter_units_tables order, with the
+    waveform rate taken from the first ElectricalSeries. Raises ValueError if a
+    Units table is present and no ElectricalSeries supplies that rate.
     """
     session_start = nwbfile.session_start_time
     series = [

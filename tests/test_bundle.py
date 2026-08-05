@@ -24,7 +24,7 @@ def test_assign_indices_empty():
 def test_assign_indices_continuous_then_unit(continuous_source):
     c0 = continuous_source(np.zeros(4, dtype=np.float32), id="c0")
     c1 = continuous_source(np.zeros(4, dtype=np.float32), id="c1")
-    # assign_indices only pairs sources with indices, so opaque sentinels suffice.
+    # assign_indices does not inspect its sources.
     u0, u1 = object(), object()
     assert assign_indices([c0, c1], [u0, u1]) == [
         (0, c0),
@@ -83,7 +83,6 @@ def test_atomic_publish_restores_final_on_failure(tmp_path):
     missing_staging = tmp_path / "nope"  # does not exist -> os.replace fails
     with pytest.raises(OSError):
         atomic_publish(missing_staging, final)
-    # The old bundle is left intact and no .old backup remains.
     assert (final / "stale.txt").read_text() == "old"
     assert not (tmp_path / "bundle.old").exists()
 

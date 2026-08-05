@@ -12,9 +12,8 @@ from ts_zarr.types import WriteOpts
 class Config:
     """Everything one bundle run needs, resolved from env and argv.
 
-    nwb_path is the input NWB file; final_dir is where the published bundle
-    lands; staging_dir is the scratch path the bundle is built in before its
-    atomic rename onto final_dir. opts carries the writer settings.
+    staging_dir is the scratch path the bundle is built in before its atomic
+    rename onto final_dir.
     """
 
     nwb_path: Path
@@ -26,20 +25,15 @@ class Config:
 def load_config(env: Mapping[str, str], argv: Sequence[str]) -> Config:
     """Resolve a Config from environment variables and command-line arguments.
 
-    argv holds the arguments after the program name. When it carries two
-    positionals they are the input NWB path and the final output directory.
-    When argv is empty the input and output come instead from the INPUT_DIR and
-    OUTPUT_DIR environment variables (the directory convention used under
-    Pennsieve): INPUT_DIR is scanned for exactly one *.nwb file and OUTPUT_DIR
-    is the final output directory. The writer settings and the staging
-    directory come from env under the ZARR_WRITER_ prefix
-    (ZARR_WRITER_STAGING_DIR, ZARR_WRITER_ZSTD_LEVEL, ZARR_WRITER_MAX_LEVELS,
-    ZARR_WRITER_MIN_BINS, ZARR_WRITER_INNER_LEN, ZARR_WRITER_TARGET_SHARD_BYTES).
-
-    Unset settings fall back to the WriteOpts defaults; an unset staging
-    directory derives from final_dir. Raises ValueError on a bad invocation:
-    exactly one positional, no positionals with INPUT_DIR/OUTPUT_DIR unset, an
-    INPUT_DIR holding zero or several *.nwb files, or any non-integer env value.
+    argv holds the arguments after the program name: two positionals are the
+    input NWB path and the final output directory. With no positionals the
+    paths come from INPUT_DIR and OUTPUT_DIR, INPUT_DIR being scanned for the
+    single *.nwb file it must hold. The writer settings and the staging
+    directory come from the ZARR_WRITER_ prefixed variables; unset settings
+    fall back to the WriteOpts defaults and an unset staging directory derives
+    from final_dir. Raises ValueError on a bad invocation: one positional,
+    INPUT_DIR or OUTPUT_DIR unset, an INPUT_DIR without exactly one *.nwb
+    file, or a non-integer setting.
     """
     nwb_path, final_dir = _resolve_paths(env, argv)
 
@@ -74,11 +68,8 @@ def _resolve_paths(
 ) -> tuple[Path, Path]:
     """Return the (input NWB, final output dir) paths from argv or env.
 
-    Two positionals win outright. With no positionals the paths come from the
-    INPUT_DIR/OUTPUT_DIR directory convention, INPUT_DIR being scanned for the
-    single *.nwb file it must contain; the bundle is published to a directory
-    inside OUTPUT_DIR named after the input stem (session.nwb -> session.zarr).
-    Raises ValueError on any other shape.
+    Two positionals take precedence over the environment. Raises ValueError on
+    any other argv shape.
     """
     positional_count = 2
     if len(argv) >= positional_count:
@@ -94,10 +85,9 @@ def _resolve_paths(
         raise ValueError(
             "load_config needs two positionals or INPUT_DIR and OUTPUT_DIR"
         )
-    # The bundle is a named directory inside OUTPUT_DIR rather than OUTPUT_DIR
-    # itself: atomic publish renames the final path, which cannot target a
-    # mount point such as the bare OUTPUT_DIR volume. It is named after the
-    # input stem (session.nwb -> session.zarr).
+    # Atomic publish renames the final path, and a rename cannot target a mount
+    # point such as the bare OUTPUT_DIR volume. The bundle is therefore a named
+    # directory inside it, taking the input stem: session.nwb -> session.zarr.
     nwb_path = _sole_nwb(Path(input_dir))
     return nwb_path, Path(output_dir) / f"{nwb_path.stem}.zarr"
 
@@ -122,7 +112,7 @@ def _sole_nwb(input_dir: Path) -> Path:
 def _int_env(env: Mapping[str, str], key: str, default: int) -> int:
     """Return the integer env value for key, or default if it is unset.
 
-    Raises ValueError (from int) if the value is present but not a valid integer.
+    Raises ValueError if the value is present but not an integer.
     """
     raw = env.get(key)
     return default if raw is None else int(raw)

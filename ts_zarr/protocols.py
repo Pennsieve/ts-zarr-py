@@ -12,7 +12,7 @@ class ContinuousChannelSource(Protocol):
 
     @property
     def id(self) -> str:
-        """Opaque upstream channel identifier the reader joins display metadata on."""
+        """Opaque upstream channel identifier."""
         ...
 
     @property
@@ -22,7 +22,7 @@ class ContinuousChannelSource(Protocol):
 
     @property
     def unit(self) -> str:
-        """Physical unit of the stored samples (e.g. "uV"); makes the bundle self-describing."""
+        """Physical unit of the stored samples, for example "uV"."""
         ...
 
     def rate_hz(self) -> float:
@@ -51,7 +51,7 @@ class UnitChannelSource(Protocol):
 
     @property
     def id(self) -> str:
-        """Opaque upstream unit identifier the reader joins display metadata on."""
+        """Opaque upstream unit identifier."""
         ...
 
     @property
@@ -61,7 +61,7 @@ class UnitChannelSource(Protocol):
 
     @property
     def unit(self) -> str:
-        """Physical unit of the stored samples (e.g. "uV"); makes the bundle self-describing."""
+        """Physical unit of the stored samples, for example "uV"."""
         ...
 
     def rate_hz(self) -> float:
@@ -81,7 +81,7 @@ class UnitChannelSource(Protocol):
         ...
 
     def read_events(self, start: int, stop: int) -> npt.NDArray[np.int64]:
-        """Return the half-open [start, stop) window of absolute-microsecond event timestamps."""
+        """Return the [start, stop) window of absolute-microsecond timestamps."""
         ...
 
     def read_units(self, start: int, stop: int) -> npt.NDArray[np.uint8]:
@@ -89,5 +89,8 @@ class UnitChannelSource(Protocol):
         ...
 
     def read_waveforms(self, start: int, stop: int) -> npt.NDArray[np.float32]:
-        """Return float32 waveforms for events [start, stop), shape (stop - start, points_per_event)."""
+        """Return the float32 waveforms for events [start, stop).
+
+        One row per event, points_per_event samples wide.
+        """
         ...

@@ -1,0 +1,176 @@
+# Viewer bundle format
+
+A viewer bundle is a static directory of Zarr v3 arrays holding one recording at several
+time resolutions. A browser opens it over HTTP range requests and renders any time
+window without downloading the recording. This document specifies the format so that
+other producers can write it and other readers can consume it.
+
+`ts-zarr-py` is the reference producer. `@pennsieve/timeseries-zarr-reader` is the
+reference reader.
+
+## Why a pyramid
+
+A recording at 32 kHz across 24 channels for 24 hours is about 265 GB in float32. A
+viewer draws an overview into roughly 2000 pixels. Fetching raw samples to compute those
+2000 columns is impossible in a browser, so the producer precomputes min/max envelopes at
+several resolutions and the reader fetches only the bins one viewport needs.
+
+The container is stock Zarr v3. There is no sidecar manifest, no schema language, and no
+namespace prefix. The whole custom surface is six attribute keys in the standard Zarr
+`attributes` field. Any Zarr v3 library can open a bundle.
+
+## Layout
+
+```
+<bundle-root>/
+  zarr.json              # root group; consolidated_metadata inlines every descendant
+  0/                     # continuous channel
+    zarr.json            # attributes: id, rate_hz, start_us, kind, name, unit
+    0/                   # pyramid level 0: raw samples
+      zarr.json          # shape (N,), dtype f4, attributes: period_us
+      c/...              # shard files
+    1/                   # pyramid level 1: 4x decimated min/max
+      zarr.json          # shape (ceil(N/4), 2), dtype f4, attributes: period_us
+      c/...
+    2/                   # 16x
+    7/                   # 16384x, the coarsest level the format allows
+  1/                     # continuous channel
+  23/                    # unit (spike) channel
+    zarr.json            # attributes: id, rate_hz, start_us, kind, name, unit
+    events/              # shape (n_events,), dtype i8
+    units/               # shape (n_events,), dtype u1
+    waveforms/           # shape (n_events, points_per_event), dtype f4
+```
+
+Channel groups are named by index (`0/`, `1/`, and so on). The index is opaque and its
+order is arbitrary; upstream identifiers never appear in a path. The reader builds an
+`id` to index map from consolidated metadata.
+
+One group per channel, rather than one `(channel, time)` array, lets channels differ in
+sample rate. A recording often mixes 32 kHz intracranial EEG with 1 kHz scalp EEG and
+250 Hz pulse oximetry, and a shared array would force a common rate or padding. Separate
+groups also let a producer write one channel at a time and let a reader fetch only the
+channels on screen.
+
+## Continuous channels
+
+A continuous channel is a pyramid of arrays, one per level, keyed by level number.
+
+Level 0 holds the raw signal: shape `(N,)`, dtype `float32`. Each level `k` at or above 1
+holds interleaved `(min, max)` pairs: shape `(ceil(N / 4^k), 2)`, dtype `float32`. One
+array per level means the reader gets both envelopes in a single fetch. Paired
+`min`/`max` arrays would double the request count for no gain.
+
+The fold is exact and needs one chunk of memory at a time:
+
+- Level 1 takes the min and the max over each disjoint block of 4 raw samples.
+- Level `k+1` takes the min of the 4 mins and the max of the 4 maxes over each disjoint
+  block of 4 pairs from level `k`.
+
+A trailing partial block of 1 to 3 elements still produces a final bin, so no sample is
+dropped.
+
+The fold uses plain min and max, not the NaN-aware variants. A NaN therefore propagates
+up the pyramid, and the reader treats finite values as "has data" and NaN as a gap.
+
+A bundle holds at most 8 levels: level 0 plus levels 1 through 7, a range of 16384x. The
+producer stops early once the next level would hold fewer than about 1024 bins.
+
+The pyramid costs about 1.67x the raw size. Each level above raw stores a pair, so the
+series `N + 2 * (N/4 + N/16 + ...)` sums to `5N/3`.
+
+Samples are stored in microvolts. Sample index `i` at level `L` starts at wall-clock
+`start_us + i * period_us(L)`. No time axis is stored.
+
+## Unit channels
+
+A unit channel holds spike events in three arrays of matching length. Index `k` refers to
+the same event in all three.
+
+| Array | Shape | dtype | Contents |
+|---|---|---|---|
+| `events` | `(n_events,)` | `i8` | absolute timestamp in microseconds, ascending |
+| `units` | `(n_events,)` | `u1` | cluster id, so at most 256 clusters per channel |
+| `waveforms` | `(n_events, points_per_event)` | `f4` | waveform samples around the event |
+
+Event timestamps are absolute, unlike continuous samples, which are indexed off the
+channel's `start_us`.
+
+Unit channels have no pyramid. Spikes are sparse next to a continuous signal, so the
+volume is already bounded. A reader binary-searches the ascending `events` array to find
+a window, which touches one or two chunks.
+
+## Attributes
+
+Attribute keys are unprefixed and case sensitive. Every value lives in the standard Zarr
+`attributes` blob.
+
+The root group carries only Zarr's own `consolidated_metadata`.
+
+Each channel group carries six keys:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | upstream channel identifier the reader joins on for platform metadata |
+| `rate_hz` | float64 | sample rate; for a unit channel, the waveform sample rate |
+| `start_us` | int64 | wall-clock microseconds of sample 0, or of the recording start |
+| `kind` | string | `continuous` or `unit` |
+| `name` | string | display label |
+| `unit` | string | physical unit of the stored samples, always `uV` |
+
+Each pyramid level array and each `waveforms` array carries one key:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `period_us` | float64 | microseconds one bin spans, or one waveform sample for `waveforms` |
+
+`period_us` is what drives the reader's level selection. `events` and `units` carry no
+custom attributes; their name, shape, and dtype define them.
+
+A level's layout needs no attribute. Rank 1 means raw samples and rank 2 with a trailing
+dimension of 2 means `(min, max)` pairs.
+
+## Storage
+
+Arrays are Zstd-compressed and sharded with the ZEP2 sharding codec. The inner chunk
+spans up to 2^18 samples along the time axis, about 256K. The outer shard groups whole
+inner chunks up to about 16 MiB. The length-2 envelope axis is never chunked.
+
+Sharding gives one file per channel per level instead of thousands of chunk files, and
+the reader pulls byte ranges out of it. Reading a shard starts with reading its index
+from the end of the file. A store should ask for a suffix range instead of issuing a HEAD
+to learn the object size followed by an absolute-offset GET.
+
+`float32` is the dtype throughout. A viewer quantizes to canvas pixels, so the extra
+precision of `float64` reaches no screen and costs twice the storage.
+
+## Consolidated metadata
+
+The root `zarr.json` must carry a Zarr v3 `consolidated_metadata` block inlining every
+descendant `zarr.json`. One GET then yields the whole tree: channels, levels, shapes,
+dtypes, and attributes.
+
+Without it, a bundle of N channels costs about `8N + 1` metadata requests before the
+first chunk fetch. With it, the cost is 1.
+
+## Publishing
+
+A reader can open a bundle at any moment, so a half-written bundle must never be visible.
+The producer writes the whole bundle into a staging directory and then renames it onto its
+final path in one operation. On an object store, stage under a separate prefix and swap.
+
+Re-ingest rewrites every array. Sharded Zarr arrays do not append well, and rebuilding the
+pyramid costs about 67% on top of the raw copy. Ingest runs once per recording; reads run
+constantly.
+
+Live recordings are out of scope. A bundle is built once, when ingest ends.
+
+## Compatibility
+
+There is no `format_version` attribute. Zarr's own mechanisms carry forward
+compatibility: new attribute keys are additive and readers ignore what they do not
+recognize, and new arrays are discovered through consolidated metadata enumeration rather
+than assumed.
+
+A reader that meets a structural mismatch fails loudly rather than guessing. If a breaking
+change ever lands, add `format_version` to the root group at that point.

@@ -18,9 +18,9 @@ def main(argv: Sequence[str]) -> int:
     """Run one bundle build from the command line and return an exit code.
 
     Resolves a Config from the process environment and argv, opens the NWB file
-    it names, discovers the channel sources, writes and atomically publishes the
-    viewer bundle, and logs progress. Returns 0 on success and a nonzero exit
-    code on a handled failure (a bad invocation or an unreadable input).
+    it names, discovers the channel sources, then writes and publishes the
+    viewer bundle. Returns 0 on success, 2 on a bad invocation, 1 on a failed
+    build.
     """
     try:
         cfg = load_config(os.environ, argv)
@@ -29,8 +29,8 @@ def main(argv: Sequence[str]) -> int:
         return 2
 
     try:
-        # The HDF5 file must stay open while the sources stream their data, so
-        # discovery and the whole write happen inside the context manager.
+        # The sources stream from the open HDF5 file, so the whole write stays
+        # inside the context manager.
         with NWBHDF5IO(str(cfg.nwb_path), mode="r") as io:
             nwbfile = io.read()
             continuous, units = build_sources_from_nwb(nwbfile)

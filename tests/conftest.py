@@ -6,7 +6,7 @@ from pynwb.testing.mock.ecephys import mock_ElectricalSeries
 
 
 class ArrayContinuousSource:
-    """In-memory ContinuousChannelSource backed by a float32 array, for tests."""
+    """In-memory ContinuousChannelSource backed by a float32 array."""
 
     def __init__(
         self,
@@ -40,14 +40,15 @@ class ArrayContinuousSource:
 
 @pytest.fixture
 def continuous_source():
+    """Return the ArrayContinuousSource factory."""
     return ArrayContinuousSource
 
 
 class ArrayUnitSource:
-    """In-memory UnitChannelSource backed by arrays, for tests.
+    """In-memory UnitChannelSource backed by arrays.
 
-    events are int64 absolute microseconds; units default to zeros and
-    waveforms to a (n_events, points_per_event) float32 ramp when not given.
+    events are int64 absolute microseconds. units and waveforms default
+    to zeros when not given.
     """
 
     def __init__(
@@ -106,11 +107,15 @@ class ArrayUnitSource:
 
 @pytest.fixture
 def unit_source():
+    """Return the ArrayUnitSource factory."""
     return ArrayUnitSource
 
 
 @pytest.fixture
 def electrical_series():
-    # Factory for a real in-memory NWB ElectricalSeries (builds its own
-    # electrode table); accepts data/rate/starting_time overrides.
+    """Return the mock_ElectricalSeries factory.
+
+    The mock builds its own electrode table and accepts data, rate, and
+    starting_time overrides.
+    """
     return mock_ElectricalSeries
