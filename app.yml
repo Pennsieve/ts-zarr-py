@@ -94,11 +94,3 @@ parameters:
     type: number
     default: 16777216
     min: 1
-
-  - name: ZARR_WRITER_STAGING_DIR
-    label: Staging directory
-    description: >-
-      Scratch path the bundle is built in before it is renamed onto the output
-      path. Must sit on the same filesystem as OUTPUT_DIR. Defaults to the
-      output path with a .staging suffix.
-    type: string
