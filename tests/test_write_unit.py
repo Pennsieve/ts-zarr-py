@@ -10,7 +10,7 @@ from ts_zarr.write_unit import (
     write_units_array,
     write_waveforms_array,
 )
-from ts_zarr.zarr_io import open_group
+from ts_zarr.zarr_io import open_group, write_region
 
 
 def _sizing():
@@ -236,3 +236,20 @@ def test_write_unit_channel_returns_none(tmp_path, unit_source):
         parent, 0, unit_source(np.arange(3, dtype=np.int64)), opts=WriteOpts()
     )
     assert result is None
+
+
+def test_write_events_array_writes_one_whole_shard_per_write(
+    tmp_path, unit_source, monkeypatch
+):
+    writes = []
+
+    def spy(array, start, block):
+        writes.append((start, block.shape[0]))
+        write_region(array, start, block)
+
+    monkeypatch.setattr("ts_zarr.write_unit.write_region", spy)
+    events = np.arange(20, dtype=np.int64) * 10
+    group = open_group(tmp_path / "bundle")
+    write_events_array(group, unit_source(events), _sizing(), 5)
+    assert writes == [(0, 8), (8, 8), (16, 4)]
+    assert np.array_equal(open_group(tmp_path / "bundle")["events"][:], events)

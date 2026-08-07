@@ -32,11 +32,13 @@ def _write_source_blocks[T: np.generic](
     reader: Callable[[int, int], npt.NDArray[T]],
     on_block: Callable[[npt.NDArray[T]], None] | None = None,
 ) -> None:
-    """Stream a source's rows into array in chunk-sized axis-0 blocks.
+    """Stream a source's rows into array in block_len-sized axis-0 blocks.
 
     Each [begin, begin + block_len) window is read through reader and written
     at the running axis-0 offset. on_block, when given, inspects a block before
-    its write.
+    its write. Callers pass the shard length: a write narrower than a shard
+    makes the sharding codec read that shard back, re-encode every inner chunk,
+    and rewrite it.
     """
     start = 0
     for begin in range(0, n, block_len):
@@ -82,7 +84,7 @@ def write_events_array(
     _write_source_blocks(
         array,
         source.num_events(),
-        sizing.chunk_shape[0],
+        sizing.shard_shape[0],
         source.read_events,
         _check_ascending,
     )
@@ -114,7 +116,7 @@ def write_units_array(
     _write_source_blocks(
         array,
         source.num_events(),
-        sizing.chunk_shape[0],
+        sizing.shard_shape[0],
         source.read_units,
     )
     return array
@@ -148,7 +150,7 @@ def write_waveforms_array(
     _write_source_blocks(
         array,
         source.num_events(),
-        sizing.chunk_shape[0],
+        sizing.shard_shape[0],
         source.read_waveforms,
     )
     return array

@@ -42,8 +42,12 @@ def _rebuffer_and_fold(
     """
     carry: npt.NDArray[np.float32] | None = None
     for block in blocks:
+        # An exhausted carry still concatenates to the block itself, so skip the
+        # copy: with shard-aligned inputs that is every iteration but the last.
         buffer = (
-            block if carry is None else np.concatenate([carry, block], axis=0)
+            block
+            if carry is None or not carry.shape[0]
+            else np.concatenate([carry, block], axis=0)
         )
         n_full = buffer.shape[0] // group
         split = n_full * group

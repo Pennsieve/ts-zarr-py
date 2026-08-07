@@ -29,14 +29,18 @@ without touching a store.
 `fold.py` reduces one level to the next: min and max over disjoint blocks of 4. See
 [the format spec](./bundle-format.md) for the exact rule and the NaN behavior.
 
-`streaming.py` drives the fold over a source one chunk at a time and buffers across chunk
-boundaries so a block that straddles two chunks still folds correctly. Memory stays
+`streaming.py` drives the fold over a source one block at a time and buffers across block
+boundaries so a run of 4 that straddles two blocks still folds correctly. Memory stays
 bounded no matter how long the recording is.
 
 ## Write path
 
 `write_continuous.py` and `write_unit.py` each write one channel by composing the stages
 above. They hold the per-channel logic and no Zarr specifics.
+
+Both pick their read block so that every write covers a whole shard. A narrower write
+makes the sharding codec read the shard back, re-encode every inner chunk, and rewrite
+it, which costs about 10x the store traffic on a 16-chunk shard.
 
 `zarr_io.py` is the only module that imports `zarr`. Everything else is Zarr-agnostic, so
 the Zarr v3 API surface this package depends on sits in one file.

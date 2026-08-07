@@ -272,3 +272,42 @@ def test_write_continuous_channel_returns_none(tmp_path, continuous_source):
         parent, 0, continuous_source(samples), opts=_MULTI_OPTS
     )
     assert result is None
+
+
+def _record_writes(monkeypatch, module):
+    """Record (start, rows) for every write_region call made by module."""
+    writes = []
+
+    def spy(array, start, block):
+        writes.append((start, block.shape[0]))
+        write_region(array, start, block)
+
+    monkeypatch.setattr(f"{module}.write_region", spy)
+    return writes
+
+
+def test_write_level0_writes_one_whole_shard_per_write(
+    tmp_path, continuous_source, monkeypatch
+):
+    writes = _record_writes(monkeypatch, "ts_zarr.write_continuous")
+    samples = np.arange(26, dtype=np.float32)
+    group = open_group(tmp_path / "bundle")
+    write_level0(group, continuous_source(samples), _plan(26), _sizing(), 5)
+    assert writes == [(0, 8), (8, 8), (16, 8), (24, 2)]
+    assert np.array_equal(open_group(tmp_path / "bundle")["0"][:], samples)
+
+
+def test_write_level_from_previous_writes_one_whole_shard_per_write(
+    tmp_path, monkeypatch
+):
+    group = open_group(tmp_path / "bundle")
+    data = np.arange(64, dtype=np.float32)
+    prev = _make_prev(group, data)
+    plan = LevelPlan(level=1, shape=(16, 2), period_us=125.0)
+    sizing = ChunkShard(chunk_shape=(4, 2), shard_shape=(8, 2))
+    writes = _record_writes(monkeypatch, "ts_zarr.write_continuous")
+    write_level_from_previous(group, prev, plan, sizing, 5)
+    assert writes == [(0, 8), (8, 8)]
+    assert np.array_equal(
+        open_group(tmp_path / "bundle")["1"][:], fold_block(data)
+    )

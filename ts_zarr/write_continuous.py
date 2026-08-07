@@ -12,7 +12,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ts_zarr.attrs import channel_group_attrs, level_array_attrs
-from ts_zarr.constants import FLOAT32_BYTES
+from ts_zarr.constants import DECIMATION_FACTOR, FLOAT32_BYTES
 from ts_zarr.fold import fold_block
 from ts_zarr.planning import level0_period_us, plan_levels
 from ts_zarr.protocols import ContinuousChannelSource
@@ -36,7 +36,12 @@ from ts_zarr.zarr_io import (
 def _write_blocks(
     array: ZarrArray, blocks: Iterable[npt.NDArray[np.float32]]
 ) -> None:
-    """Write each block to array at its running axis-0 offset."""
+    """Write each block to array at its running axis-0 offset.
+
+    Blocks arrive shard-sized, so each write covers a whole shard. A write
+    narrower than a shard makes the sharding codec read that shard back,
+    re-encode every inner chunk, and rewrite it.
+    """
     start = 0
     for block in blocks:
         write_region(array, start, block)
@@ -53,7 +58,7 @@ def write_level0(
     """Create the level-0 raw array under group and stream the source into it.
 
     The array is named "0", holds float32, and carries the level period_us as
-    its sole attribute. The source's raw samples are read in chunk-sized
+    its sole attribute. The source's raw samples are read in shard-sized
     blocks. Raises ValueError if plan does not describe level 0 (raw).
     """
     if not plan.is_raw:
@@ -69,7 +74,7 @@ def write_level0(
         level_array_attrs(plan.period_us),
         zstd_level,
     )
-    _write_blocks(array, iter_raw_blocks(source, sizing.chunk_shape[0]))
+    _write_blocks(array, iter_raw_blocks(source, sizing.shard_shape[0]))
     return array
 
 
@@ -83,9 +88,10 @@ def write_level_from_previous(
     """Create the level named plan.level by folding the previous level into it.
 
     The array is named str(plan.level), holds float32, and carries the level
-    period_us as its sole attribute. prev is read in chunk-sized axis-0 blocks
-    and folded across block boundaries by fold_block. Raises ValueError if plan
-    describes level 0.
+    period_us as its sole attribute. prev is read in axis-0 blocks of
+    DECIMATION_FACTOR shards and folded across block boundaries by fold_block,
+    so each folded block fills one shard of the new array. Raises ValueError if
+    plan describes level 0.
     """
     if plan.is_raw:
         raise ValueError("level must not be raw")
@@ -105,7 +111,8 @@ def write_level_from_previous(
         array,
         _rebuffer_and_fold(
             iter_array_blocks(
-                cast("BlockReadableArray", prev), sizing.chunk_shape[0]
+                cast("BlockReadableArray", prev),
+                DECIMATION_FACTOR * sizing.shard_shape[0],
             ),
             fold_block,
         ),
