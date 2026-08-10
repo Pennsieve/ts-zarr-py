@@ -10,6 +10,7 @@ from pynwb import NWBHDF5IO
 from ts_zarr.bundle import write_bundle
 from ts_zarr.config import load_config
 from ts_zarr.nwb_reader import build_sources_from_nwb
+from ts_zarr.properties import write_properties
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,8 @@ def main(argv: Sequence[str]) -> int:
 
     Resolves a Config from the process environment and argv, opens the NWB file
     it names, discovers the channel sources, then writes and publishes the
-    viewer bundle. Returns 0 on success, 2 on a bad invocation, 1 on a failed
-    build.
+    viewer bundle followed by the output properties naming it. Returns 0 on
+    success, 2 on a bad invocation, 1 on a failed build.
     """
     try:
         cfg = load_config(os.environ, argv)
@@ -47,6 +48,7 @@ def main(argv: Sequence[str]) -> int:
                 final_dir=cfg.final_dir,
                 opts=cfg.opts,
             )
+        write_properties(cfg.properties_path, cfg.final_dir)
     except (OSError, ValueError):
         logger.exception("failed to build bundle from %s", cfg.nwb_path)
         return 1

@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from ts_zarr.properties import DEFAULT_PROPERTIES_FILE
 from ts_zarr.types import WriteOpts
 
 
@@ -13,12 +14,14 @@ class Config:
     """Everything one bundle run needs, resolved from env and argv.
 
     staging_dir is the scratch path the bundle is built in before its atomic
-    rename onto final_dir.
+    rename onto final_dir. properties_path is the output properties file, a
+    sibling of final_dir.
     """
 
     nwb_path: Path
     staging_dir: Path
     final_dir: Path
+    properties_path: Path
     opts: WriteOpts
 
 
@@ -31,7 +34,8 @@ def load_config(env: Mapping[str, str], argv: Sequence[str]) -> Config:
     single *.nwb file it must hold. The writer settings and the staging
     directory come from the ZARR_WRITER_ prefixed variables; unset settings
     fall back to the WriteOpts defaults and an unset staging directory derives
-    from final_dir. Raises ValueError on a bad invocation: one positional,
+    from final_dir. ASSET_PROPERTIES_FILE names the output properties file
+    beside the bundle. Raises ValueError on a bad invocation: one positional,
     INPUT_DIR or OUTPUT_DIR unset, an INPUT_DIR without exactly one *.nwb
     file, or a non-integer setting.
     """
@@ -55,10 +59,13 @@ def load_config(env: Mapping[str, str], argv: Sequence[str]) -> Config:
         else final_dir.with_name(final_dir.name + ".staging")
     )
 
+    properties_name = env.get("ASSET_PROPERTIES_FILE", DEFAULT_PROPERTIES_FILE)
+
     return Config(
         nwb_path=nwb_path,
         staging_dir=staging_dir,
         final_dir=final_dir,
+        properties_path=final_dir.parent / properties_name,
         opts=opts,
     )
 

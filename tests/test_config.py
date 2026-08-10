@@ -24,6 +24,24 @@ def test_unset_staging_derives_from_final_dir():
     assert cfg.staging_dir.parent == cfg.final_dir.parent
 
 
+def test_unset_properties_file_uses_the_default_name():
+    cfg = load_config({}, ["in.nwb", "out/session.zarr"])
+    assert cfg.properties_path == Path("out/asset-properties.json")
+
+
+def test_env_properties_file_honored():
+    cfg = load_config(
+        {"ASSET_PROPERTIES_FILE": "declared.json"},
+        ["in.nwb", "out/session.zarr"],
+    )
+    assert cfg.properties_path == Path("out/declared.json")
+
+
+def test_properties_file_is_a_sibling_of_the_bundle():
+    cfg = load_config({}, ["in.nwb", "out/session.zarr"])
+    assert cfg.properties_path.parent == cfg.final_dir.parent
+
+
 def test_env_staging_dir_honored():
     cfg = load_config(
         {"ZARR_WRITER_STAGING_DIR": "scratch/stage"},

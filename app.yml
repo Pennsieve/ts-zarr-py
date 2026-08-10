@@ -46,7 +46,20 @@ outputs:
       session.nwb produces session.zarr. The directory appears in one atomic
       rename, so a reader never sees a partial bundle.
 
+  - name: properties
+    dataType: file
+    description: >-
+      Output properties written into OUTPUT_DIR beside the bundle. Its
+      root_path key is the top-level directory name of the bundle.
+
 parameters:
+  - name: ASSET_PROPERTIES_FILE
+    label: Properties file name
+    description: >-
+      Name of the output properties file written into OUTPUT_DIR.
+    type: string
+    default: asset-properties.json
+
   - name: ZARR_WRITER_ZSTD_LEVEL
     label: Zstd compression level
     description: >-
