@@ -111,5 +111,17 @@ def test_chunk_and_shard_custom_params():
 
 def test_chunk_and_shard_concrete():
     result = chunk_and_shard((100_000_000,), 4)
-    assert result.chunk_shape == (262144,)
+    assert result.chunk_shape == (8192,)
     assert result.shard_shape == (4194304,)
+
+
+@pytest.mark.parametrize(
+    ("level_shape", "dtype_size", "expected_shard"),
+    [((100_000_000,), 4, (4194304,)), ((100_000_000, 2), 4, (2097152, 2))],
+)
+def test_chunk_and_shard_fills_the_shard_target(
+    level_shape, dtype_size, expected_shard
+):
+    result = chunk_and_shard(level_shape, dtype_size)
+    assert result.shard_shape == expected_shard
+    assert result.chunk_shape[0] == INNER_CHUNK_SAMPLES

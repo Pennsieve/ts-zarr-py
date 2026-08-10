@@ -133,8 +133,13 @@ dimension of 2 means `(min, max)` pairs.
 ## Storage
 
 Arrays are Zstd-compressed and sharded with the ZEP2 sharding codec. The inner chunk
-spans up to 2^18 samples along the time axis, about 256K. The outer shard groups whole
-inner chunks up to about 16 MiB. The length-2 envelope axis is never chunked.
+spans up to 2^13 (8192) bins along the time axis. The outer shard groups whole inner
+chunks up to about 16 MiB. The length-2 envelope axis is never chunked.
+
+The inner chunk is the smallest unit a reader can fetch, so its width sets the floor on
+what a read transfers. A reader picks the level whose `period_us` matches one pixel,
+which puts a rendered window at a few thousand bins whatever the zoom. A chunk wider
+than that transfers bins nothing reads.
 
 Sharding gives one file per channel per level instead of thousands of chunk files, and
 the reader pulls byte ranges out of it. Reading a shard starts with reading its index
