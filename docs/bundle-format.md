@@ -16,8 +16,9 @@ viewer draws an overview into roughly 2000 pixels. Fetching raw samples to compu
 several resolutions and the reader fetches only the bins one viewport needs.
 
 The container is stock Zarr v3. There is no sidecar manifest, no schema language, and no
-namespace prefix. The whole custom surface is six attribute keys in the standard Zarr
-`attributes` field. Any Zarr v3 library can open a bundle.
+namespace prefix. The whole custom surface is seven attribute keys in the standard Zarr
+`attributes` field: six on each channel group and one on each level and waveform array.
+Any Zarr v3 library can open a bundle.
 
 ## Layout
 
@@ -57,9 +58,10 @@ channels on screen.
 A continuous channel is a pyramid of arrays, one per level, keyed by level number.
 
 Level 0 holds the raw signal: shape `(N,)`, dtype `float32`. Each level `k` at or above 1
-holds interleaved `(min, max)` pairs: shape `(ceil(N / 4^k), 2)`, dtype `float32`. One
-array per level means the reader gets both envelopes in a single fetch. Paired
-`min`/`max` arrays would double the request count for no gain.
+holds interleaved `(min, max)` pairs: shape `(ceil(N / 4^k), 2)`, dtype `float32`. Column
+0 holds each bin's min and column 1 its max. One array per level means the reader gets
+both envelopes in a single fetch. Paired `min`/`max` arrays would double the request
+count for no gain.
 
 The fold is exact and needs one chunk of memory at a time:
 
@@ -74,7 +76,11 @@ The fold uses plain min and max, not the NaN-aware variants. A NaN therefore pro
 up the pyramid, and the reader treats finite values as "has data" and NaN as a gap.
 
 A bundle holds at most 8 levels: level 0 plus levels 1 through 7, a range of 16384x. The
-producer stops early once the next level would hold fewer than about 1024 bins.
+producer stops early once the next level runs out of complete bins: level `k` at or above
+1 is present when `floor(N / 4^k)` is at least the bin threshold, and the written level
+still keeps its partial trailing bin. The threshold is producer-tunable; the reference
+producer defaults to 1024. A channel with no samples writes a zero-length level 0 and no
+coarser levels.
 
 The pyramid costs about 1.67x the raw size. Each level above raw stores a pair, so the
 series `N + 2 * (N/4 + N/16 + ...)` sums to `5N/3`.
@@ -89,16 +95,18 @@ the same event in all three.
 
 | Array | Shape | dtype | Contents |
 |---|---|---|---|
-| `events` | `(n_events,)` | `i8` | absolute timestamp in microseconds, ascending |
+| `events` | `(n_events,)` | `i8` | absolute timestamp in microseconds, non-decreasing |
 | `units` | `(n_events,)` | `u1` | cluster id, so at most 256 clusters per channel |
 | `waveforms` | `(n_events, points_per_event)` | `f4` | waveform samples around the event |
 
 Event timestamps are absolute, unlike continuous samples, which are indexed off the
-channel's `start_us`.
+channel's `start_us`. Equal timestamps are allowed: two clusters can fire in the same
+microsecond.
 
 Unit channels have no pyramid. Spikes are sparse next to a continuous signal, so the
-volume is already bounded. A reader binary-searches the ascending `events` array to find
-a window, which touches one or two chunks.
+volume is already bounded. A reader binary-searches the sorted `events` array to find
+a window, which touches one or two chunks. A unit channel with no events writes all
+three arrays at length 0.
 
 ## Attributes
 
@@ -134,7 +142,10 @@ dimension of 2 means `(min, max)` pairs.
 
 Arrays are Zstd-compressed and sharded with the ZEP2 sharding codec. The inner chunk
 spans up to 2^13 (8192) bins along the time axis. The outer shard groups whole inner
-chunks up to about 16 MiB. The length-2 envelope axis is never chunked.
+chunks up to about 16 MiB; a single chunk already over that target forms a shard on its
+own. The length-2 envelope axis is never chunked. The unit-channel arrays follow the
+same sizing, and the `points_per_event` axis of `waveforms` is never chunked. The
+compression level is a producer tuning knob, not part of the format.
 
 The inner chunk is the smallest unit a reader can fetch, so its width sets the floor on
 what a read transfers. A reader picks the level whose `period_us` matches one pixel,
@@ -161,8 +172,11 @@ first chunk fetch. With it, the cost is 1.
 ## Publishing
 
 A reader can open a bundle at any moment, so a half-written bundle must never be visible.
-The producer writes the whole bundle into a staging directory and then renames it onto its
-final path in one operation. On an object store, stage under a separate prefix and swap.
+The producer writes the whole bundle into a staging directory and then renames it onto
+its final path. A first publish is one rename. Re-publishing over an existing bundle
+renames the old bundle aside, renames the staging directory in, and removes the backup,
+which leaves a brief window in which the final path is absent. On an object store, stage
+under a separate prefix and swap.
 
 Re-ingest rewrites every array. Sharded Zarr arrays do not append well, and rebuilding the
 pyramid costs about 67% on top of the raw copy. Ingest runs once per recording; reads run

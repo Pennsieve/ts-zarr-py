@@ -265,6 +265,16 @@ def test_write_continuous_channel_degenerate_single_level(
     assert np.array_equal(grp["0"][:], samples)
 
 
+def test_write_continuous_channel_empty_source_writes_empty_level0(
+    tmp_path, continuous_source
+):
+    parent = open_group(tmp_path / "bundle")
+    write_continuous_channel(parent, 0, continuous_source([]), opts=WriteOpts())
+    grp = open_group(tmp_path / "bundle")["0"]
+    assert list(grp.array_keys()) == ["0"]
+    assert grp["0"].shape == (0,)
+
+
 def test_write_continuous_channel_returns_none(tmp_path, continuous_source):
     samples = np.arange(64, dtype=np.float32)
     parent = open_group(tmp_path / "bundle")

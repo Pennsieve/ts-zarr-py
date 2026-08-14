@@ -25,6 +25,10 @@ With no arguments the writer takes the directory convention instead: it reads th
 `.nwb` file in `INPUT_DIR` and publishes to `OUTPUT_DIR/<input-stem>.zarr`. This is how
 the container runs.
 
+Every run also writes a sibling properties file next to the bundle,
+`asset-properties.json` by default (`ASSET_PROPERTIES_FILE` overrides the name),
+recording the bundle's directory name under the key `root_path`.
+
 ```bash
 make run        # docker-compose build + up, against data/input and data/output
 ```

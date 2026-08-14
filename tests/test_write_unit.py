@@ -238,6 +238,17 @@ def test_write_unit_channel_returns_none(tmp_path, unit_source):
     assert result is None
 
 
+def test_write_unit_channel_zero_events_writes_empty_arrays(
+    tmp_path, unit_source
+):
+    parent = open_group(tmp_path / "bundle")
+    write_unit_channel(parent, 5, unit_source([]), opts=WriteOpts())
+    grp = open_group(tmp_path / "bundle")["5"]
+    assert grp["events"].shape == (0,)
+    assert grp["units"].shape == (0,)
+    assert grp["waveforms"].shape == (0, 4)
+
+
 def test_write_events_array_writes_one_whole_shard_per_write(
     tmp_path, unit_source, monkeypatch
 ):

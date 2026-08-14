@@ -3,7 +3,11 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from ts_zarr.constants import INNER_CHUNK_SAMPLES, TARGET_SHARD_BYTES
+from ts_zarr.constants import (
+    INNER_CHUNK_SAMPLES,
+    MAX_LEVELS,
+    TARGET_SHARD_BYTES,
+)
 
 type ChannelKind = Literal["continuous", "unit"]
 
@@ -53,7 +57,7 @@ class WriteOpts:
     """
 
     zstd_level: int = 5
-    max_levels: int = 8
+    max_levels: int = MAX_LEVELS
     min_bins: int = 1024
     inner_len: int = INNER_CHUNK_SAMPLES
     target_shard_bytes: int = TARGET_SHARD_BYTES

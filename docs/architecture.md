@@ -12,8 +12,9 @@ one channel's metadata and windowed reads (`read_samples`, `read_events`, and th
 protocols, not on NWB. The core is testable against in-memory sources, and a second input
 format costs one new adapter and no changes elsewhere.
 
-`nwb_reader.py` also normalizes samples to microvolts, so every channel reaching the
-writer is already in the unit the bundle promises.
+`nwb_reader.py` also normalizes continuous samples to microvolts, so every continuous
+channel reaching the writer is already in the unit the bundle promises. Unit-channel
+waveforms carry no unit metadata in NWB and are stored unscaled.
 
 ## Decision layer
 
@@ -54,4 +55,5 @@ metadata, publish atomically.
 
 `main.py` and `config.py` are the CLI and environment-config shell around it.
 `config.py` resolves both invocation forms, positional arguments and the
-`INPUT_DIR`/`OUTPUT_DIR` convention.
+`INPUT_DIR`/`OUTPUT_DIR` convention. After publishing, `properties.py` writes the
+`asset-properties.json` sidecar that records the bundle's directory name.

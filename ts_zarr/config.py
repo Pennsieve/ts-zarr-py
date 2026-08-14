@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from ts_zarr.constants import MAX_LEVELS
 from ts_zarr.properties import DEFAULT_PROPERTIES_FILE
 from ts_zarr.types import WriteOpts
 
@@ -37,14 +38,21 @@ def load_config(env: Mapping[str, str], argv: Sequence[str]) -> Config:
     from final_dir. ASSET_PROPERTIES_FILE names the output properties file
     beside the bundle. Raises ValueError on a bad invocation: one positional,
     INPUT_DIR or OUTPUT_DIR unset, an INPUT_DIR without exactly one *.nwb
-    file, or a non-integer setting.
+    file, a non-integer setting, or ZARR_WRITER_MAX_LEVELS outside 1 through
+    MAX_LEVELS.
     """
     nwb_path, final_dir = _resolve_paths(env, argv)
 
     defaults = WriteOpts()
+    max_levels = _int_env(env, "ZARR_WRITER_MAX_LEVELS", defaults.max_levels)
+    if not 1 <= max_levels <= MAX_LEVELS:
+        raise ValueError(
+            f"ZARR_WRITER_MAX_LEVELS must be 1 to {MAX_LEVELS}, "
+            f"got {max_levels}"
+        )
     opts = WriteOpts(
         zstd_level=_int_env(env, "ZARR_WRITER_ZSTD_LEVEL", defaults.zstd_level),
-        max_levels=_int_env(env, "ZARR_WRITER_MAX_LEVELS", defaults.max_levels),
+        max_levels=max_levels,
         min_bins=_int_env(env, "ZARR_WRITER_MIN_BINS", defaults.min_bins),
         inner_len=_int_env(env, "ZARR_WRITER_INNER_LEN", defaults.inner_len),
         target_shard_bytes=_int_env(

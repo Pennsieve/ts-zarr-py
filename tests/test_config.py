@@ -70,6 +70,21 @@ def test_env_settings_override_defaults():
     )
 
 
+def test_max_levels_above_the_format_cap_raises():
+    with pytest.raises(ValueError):
+        load_config({"ZARR_WRITER_MAX_LEVELS": "9"}, ["in.nwb", "out_bundle"])
+
+
+def test_max_levels_below_one_raises():
+    with pytest.raises(ValueError):
+        load_config({"ZARR_WRITER_MAX_LEVELS": "0"}, ["in.nwb", "out_bundle"])
+
+
+def test_max_levels_at_the_cap_is_accepted():
+    cfg = load_config({"ZARR_WRITER_MAX_LEVELS": "8"}, ["in.nwb", "out_bundle"])
+    assert cfg.opts.max_levels == 8
+
+
 def test_zero_positionals_raises():
     with pytest.raises(ValueError):
         load_config({}, [])

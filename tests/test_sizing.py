@@ -17,6 +17,8 @@ from ts_zarr.types import ChunkShard
         ((256,), 256, (256,)),
         ((1000, 2), 256, (256, 2)),
         ((100, 2), 256, (100, 2)),
+        ((0,), 256, (1,)),  # zero-length level -> one-bin floor
+        ((0, 2), 256, (1, 2)),
     ],
 )
 def test_chunk_shape_for_level(level_shape, inner_len, expected):
@@ -51,6 +53,7 @@ def test_chunk_shape_for_level_default_inner_len_rank2():
             (2097152, 2),
         ),  # rank-2, 2-axis kept
         ((100,), (100,), 4, 16 * 2**20, (100,)),  # tiny -> one chunk
+        ((1,), (0,), 4, 16 * 2**20, (1,)),  # zero-length level -> one chunk
     ],
 )
 def test_shard_shape_for_level(
@@ -113,6 +116,17 @@ def test_chunk_and_shard_concrete():
     result = chunk_and_shard((100_000_000,), 4)
     assert result.chunk_shape == (8192,)
     assert result.shard_shape == (4194304,)
+
+
+@pytest.mark.parametrize(
+    ("level_shape", "expected"),
+    [
+        ((0,), ChunkShard(chunk_shape=(1,), shard_shape=(1,))),
+        ((0, 2), ChunkShard(chunk_shape=(1, 2), shard_shape=(1, 2))),
+    ],
+)
+def test_chunk_and_shard_zero_length_level(level_shape, expected):
+    assert chunk_and_shard(level_shape, 4) == expected
 
 
 @pytest.mark.parametrize(

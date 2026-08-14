@@ -5,6 +5,9 @@ from typing import Final
 DECIMATION_FACTOR: Final = 4
 """Samples folded into one bin per pyramid level (4x coarser each level)."""
 
+MAX_LEVELS: Final = 8
+"""Most pyramid levels a bundle can hold: level 0 plus levels 1 through 7."""
+
 ENVELOPE_PAIR_SIZE: Final = 2
 """Length of the trailing (min, max) axis on every coarser pyramid level."""
 
